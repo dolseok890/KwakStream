@@ -1,3 +1,15 @@
+# KwakStream v0.1.11 — Android 카메라 컴파일 오류 수정
+
+- v0.1.10에서 `Camera2Controller.kt:500`의 `Size.height()`를 호출하여 Kotlin 컴파일이 실패하던 문제를 고쳤습니다.
+- 카메라 영상의 원본 회전/FIT_CENTER, Camera2·AVFoundation, 렌즈/줌, iOS 시뮬레이터를 변경하지 않았습니다.
+- 테스트: `python3 tests/verify_sources.py`, `python3 tests/verify_preview_size_compile.py`.
+- 다운로드한 ZIP은 기존과 같은 `KwakStream.zip` 이름을 유지합니다.
+- Android 기기 빌드: `kbuild KwakStream.zip`.
+- GitHub 게시: 기존 `scripts/publish-version.sh`로 단일 소스 루트 커밋 및 불변 `v0.1.11` 태그.
+- 실제 APK 빌드, 설치 및 iOS 시뮬레이터 실행은 별도 검증해야 합니다.
+
+---
+
 # KwakStream v0.1.9 — 카메라 줌 보정 로직 제거
 
 - Android Camera2: `CameraManager.cameraIdList`가 보고한 전·후면 카메라 ID만 표시합니다.

@@ -497,7 +497,7 @@ private fun pickPreviewSize(sizes: Array<Size>?, sensorRect: Rect?): Size? {
     return eligible.minWithOrNull(
         compareBy<Size> {
             if (nativeAspect == null) 0.0
-            else abs(maxOf(it.width, it.height()).toDouble() / minOf(it.width, it.height()) - nativeAspect)
+            else abs(maxOf(it.width, it.height).toDouble() / minOf(it.width, it.height) - nativeAspect)
         }.thenBy { abs(it.width.toLong() * it.height - 1280L * 960L) }
     )
 }
