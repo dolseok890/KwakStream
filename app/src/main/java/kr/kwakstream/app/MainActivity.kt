@@ -126,6 +126,11 @@ fun CameraScreen() {
                 Text(state.status, color = if (state.error) Color(0xFFFFB4AB) else Color.White,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.background(Color.Black.copy(alpha = 0.78f)).padding(7.dp))
+                if (state.previewInfo.isNotBlank()) Text(
+                    state.previewInfo, color = Color.LightGray,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.65f)).padding(4.dp)
+                )
                 if (!granted) Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
                 else if (state.error) OutlinedButton(onClick = { controller.retry() }) { Text("카메라 재시도") }
                 val selected = state.cameras.find { it.id == state.selectedId }

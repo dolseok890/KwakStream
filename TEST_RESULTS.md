@@ -1,25 +1,12 @@
-# 곽스트림 v0.1.11 테스트 결과
+# 곽스트림 v0.1.12 TEST_RESULTS
 
-- **통과:** Kotlin 순수 미리보기 회전·FIT_CENTER 로직 컴파일 및 실행, 32개 전후면·센서·디스플레이 방향 조합.
-- **통과:** 세로/가로/4:3 소스 크기 및 FIT_CENTER 비율 테스트.
-- **통과:** 소스 계약·버전·Android manifest·아이콘 JSON·YAML 정적 검사 28/28.
-- **통과:** Swift 소스 파서 구문 검사 (iOS 실제 컴파일 아님).
-- **통과:** 기존 PNG 이미지·앱 아이콘 6개 원본과 바이트 일치.
-- **미실행:** Android `:app:assembleDebug` — 현재 환경에 Android SDK/Gradle 배포본 없음.
-- **미실행:** iOS Xcode 빌드·UI Test — macOS/Xcode 환경 아님.
-- **미실행:** Android 실기기에서 카메라 방향·영상·API 줌·프리징·앱 복귀 반복.
-- **미실행:** iPhone 실기기와 iOS 시뮬레이터 실제 UI 회귀 테스트.
-- **해당 없음:** MP4 녹화(아직 미구현), Cloudflare/RTMP/SRT 기능(이번 버전 범위 제외).
-
-**중요:** 회전 공식의 정적 정확성과 실제 화면/기기별 정상 동작은 다른 검증 단계입니다. APK 빌드 또는 실기기 통과를 주장하지 않습니다.
-- **통과:** 배포 ZIP 압축 및 필수 소스/버전/아이콘 검증 (최종 ZIP 생성 시 수행).
-
-## v0.1.11 Android 컴파일 오류 수정 검증
-- **실패 확인 (v0.1.10, 사용자 실기기 Termux 로그):** `:app:compileDebugKotlin FAILED` / `Camera2Controller.kt:500:41` 및 `:500:83` — Kotlin `Int` 속성 `height`를 함수로 호출.
-- **수정:** `pickPreviewSize`의 Android `Size.height()` 사용 두 곳을 `Size.height` 프로퍼티로 변경. Android `Rect.height()` 메서드는 정상 호출이므로 보존.
-- **통과:** 실제 `pickPreviewSize()` Kotlin 함수 본문을 추출해 `Size`/`Rect` 형식에 맞는 스텁으로 컴파일 및 5가지 선택 테스트 실행.
-- **통과:** `PreviewGeometry` 실제 Kotlin 컴파일·실행 — 전후면/센서/디스플레이 32가지 방향 조합, FIT_CENTER 및 4:3 확인.
-- **통과:** `tests/verify_sources.py` 정적 검사 29/29, iOS Swift 구문 파싱 포함 (실제 Xcode 빌드 아님).
-- **미실행:** v0.1.11 Android 전체 Gradle `assembleDebug` / Termux Studio 빌드 (현재 환경에 Android SDK 없음).
-- **미실행:** iPhone 시뮬레이터 UI와 실제 Android 카메라 회귀 동작.
-- **검증 요청:** 사용자의 기존 `kbuild KwakStream.zip`으로 v0.1.11 APK 빌드 및 실제 기기 실행 확인.
+- **실패 확인:** 사용자의 v0.1.11 실기기 스크린샷에서 세로 UI에 전면 영상이 옆으로 누움.
+- **원인 분석:** Camera2 `TextureView`의 시스템 자동 센서 회전을 무시하고 앱에서 센서 상대 회전을 중복 적용한 로직 확인. Android 공식 Camera2 가이드 참고.
+- **통과:** Kotlin 순수 로직 회전 테스트; front/back + sensor + display 총 32조합. 전면 sensor=270°, 화면 0°에서 추가 미리보기 회전=0° 확인.
+- **통과:** FIT_CENTER 사각형 bounds/균일 배율 및 미리보기 크기/방향 산식 검증.
+- **통과:** 정적 소스 검사 32/32, Swift 구문 파싱, YAML/JSON/XML 구문.
+- **통과:** 실 Kotlin `pickPreviewSize()` 함수 추출 컴파일, 다섯 가지 입력 검증.
+- **미실행:** 전체 Android APK/Gradle 빌드 (현재 환경에 Android SDK 없음).
+- **미실행:** Android 실기기 전·후면 미리보기 방향, 폴더블 회전, 줌/카메라 전환 회귀.
+- **미실행:** macOS/Xcode iOS 시뮬레이터 빌드 및 iPhone 실기기.
+- **해당 없음:** MP4 녹화/RTMP/Cloudflare는 이번 수정 범위 밖.

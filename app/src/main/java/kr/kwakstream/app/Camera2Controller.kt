@@ -42,6 +42,7 @@ data class Camera2UiState(
     val selectedId: String? = null,
     val zoomStops: List<Float> = emptyList(),
     val selectedZoom: Float = 1f,
+    val previewInfo: String = "",
     val ready: Boolean = false,
     val error: Boolean = false
 )
@@ -127,13 +128,33 @@ class Camera2Controller(private val context: Context) {
         surfaceHeight = height
         if (surfaceTexture == null) { closeCamera(); info("화면 Surface 대기 중") }
         else if (changed) { closeCamera(); openIfPossible() }
-        else applyPreviewTransform()
+        else {
+            refreshCameraMetadataForFoldable()
+            applyPreviewTransform()
+        }
+    }
+
+    /** Some foldables can swap an active physical sensor without changing the logical ID. */
+    private fun refreshCameraMetadataForFoldable() {
+        val id = selectedId ?: return
+        try {
+            val meta = manager.getCameraCharacteristics(id)
+            val currentSensor = meta.get(CameraCharacteristics.SENSOR_ORIENTATION)
+            if (currentSensor != null && currentSensor != sensorOrientation) {
+                Log.i(TAG, "PREVIEW_SENSOR_CHANGED camera=$id old=$sensorOrientation new=$currentSensor")
+                sensorOrientation = currentSensor
+            }
+            isFront = meta.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+        } catch (e: CameraAccessException) {
+            Log.w(TAG, "PREVIEW_SENSOR_REFRESH_FAILED", e)
+        }
     }
 
     /** UI-thread display rotation notification; also handles 180° turns with no size change. */
     fun onDisplayRotationChanged(rotation: Int) = worker.post {
         if (released || displayRotation == rotation) return@post
         displayRotation = rotation
+        refreshCameraMetadataForFoldable()
         applyPreviewTransform()
     }
 
@@ -142,6 +163,7 @@ class Camera2Controller(private val context: Context) {
         lastFrameAt = SystemClock.elapsedRealtime()
         if (awaitingFirstFrame) {
             awaitingFirstFrame = false
+            applyPreviewTransform() // The actual camera stream has now reached TextureView.
             retryCount = 0
             info("CAM_OK · ${cameraLabel(selectedId)} · 미리보기 정상", ready = true)
         }
@@ -169,6 +191,7 @@ class Camera2Controller(private val context: Context) {
         selectedId = cameraId
         selectedZoom = 1f
         selectedSize = null // do not apply the previous camera's shape to the new camera.
+        update(snapshot.copy(previewInfo = ""))
         retryCount = 0
         update(snapshot.copy(selectedId = cameraId, zoomStops = emptyList(), selectedZoom = 1f, ready = false))
         closeCamera()
@@ -284,6 +307,8 @@ class Camera2Controller(private val context: Context) {
         val tex = texture ?: return
         try {
             tex.setDefaultBufferSize(size.width, size.height)
+            // Buffer size is now final. Apply geometry again after SurfaceTexture setup.
+            applyPreviewTransform()
             val surface = Surface(tex)
             previewSurface = surface
             val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
@@ -404,7 +429,8 @@ class Camera2Controller(private val context: Context) {
     private fun applyPreviewTransform() {
         val view = textureView ?: return
         val size = selectedSize ?: return
-        val width = surfaceWidth; val height = surfaceHeight
+        val width = surfaceWidth
+        val height = surfaceHeight
         if (width <= 0 || height <= 0) return
         val displayDegrees = when (displayRotation) {
             Surface.ROTATION_90 -> 90
@@ -412,35 +438,35 @@ class Camera2Controller(private val context: Context) {
             Surface.ROTATION_270 -> 270
             else -> 0
         }
-        // The camera outputs sensor-coordinate pixels, NOT already upright UI pixels.
-        // Follow the official Camera2 relative-rotation equation; no additional
-        // hard-coded lens or 9:16/16:9 correction is applied.
-        val degrees = cameraRelativeRotation(sensorOrientation, displayDegrees, isFront)
-        val (orientedWidth, orientedHeight) = orientedPreviewSize(size.width, size.height, degrees)
-        val scale = fitCenterScale(orientedWidth, orientedHeight, width, height)
-        val generationAtRequest = generation
+        // TextureView already applies SENSOR_ORIENTATION at the SurfaceTexture
+        // layer. The old code applied cameraRelativeRotation() here as well,
+        // resulting in a sideways picture on portrait devices (especially
+        // front cameras with SENSOR_ORIENTATION=270). Only the residual
+        // display rotation belongs in TextureView.setTransform().
+        val fit = texturePreviewFit(
+            size.width, size.height, sensorOrientation, displayDegrees, width, height
+        )
+        val src = floatArrayOf(
+            0f, 0f, width.toFloat(), 0f,
+            width.toFloat(), height.toFloat(), 0f, height.toFloat()
+        )
+        val token = generation
         main.post {
-            if (released || view !== textureView || generationAtRequest != generation) return@post
-            val radians = Math.toRadians(degrees.toDouble())
-            val c = kotlin.math.cos(radians).toFloat()
-            val s = kotlin.math.sin(radians).toFloat()
-            // Map the entire uncut camera frame to the measured view rectangle.
-            // Uniform scaling + centering = FIT_CENTER; black bars are expected.
-            val src = floatArrayOf(0f, 0f, width.toFloat(), 0f,
-                width.toFloat(), height.toFloat(), 0f, height.toFloat())
-            val dst = FloatArray(8)
-            for (i in 0..3) {
-                val x = if (i == 0 || i == 3) -size.width / 2f else size.width / 2f
-                val y = if (i == 0 || i == 1) -size.height / 2f else size.height / 2f
-                dst[i*2] = width/2f + (x*c - y*s)*scale
-                dst[i*2+1] = height/2f + (x*s + y*c)*scale
-            }
+            if (released || view !== textureView || token != generation) return@post
             val matrix = Matrix()
-            if (matrix.setPolyToPoly(src, 0, dst, 0, 4)) view.setTransform(matrix)
+            if (matrix.setPolyToPoly(src, 0, fit.destinationCorners, 0, 4)) {
+                view.setTransform(matrix)
+                Log.i(TAG, "PREVIEW_APPLIED camera=$selectedId sensor=$sensorOrientation " +
+                    "display=$displayDegrees correction=${fit.displayCorrection} " +
+                    "natural=${fit.sensorOrientedSize.first}x${fit.sensorOrientedSize.second} " +
+                    "fitted=${fit.displayedSize.first}x${fit.displayedSize.second} " +
+                    "view=${width}x$height FIT_CENTER")
+            } else {
+                Log.e(TAG, "[E_PREVIEW_MATRIX] Matrix.setPolyToPoly failed")
+            }
         }
-        Log.i(TAG, "PREVIEW sensor=$sensorOrientation display=$displayDegrees " +
-            "relative=$degrees buffer=${size.width}x${size.height} " +
-            "oriented=${orientedWidth}x${orientedHeight} view=${width}x${height} FIT_CENTER")
+        update(snapshot.copy(previewInfo = "방향: 센서 ${sensorOrientation}° · 화면 ${displayDegrees}° · " +
+            "미리보기 보정 ${fit.displayCorrection}°"))
     }
 
 }

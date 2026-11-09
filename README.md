@@ -1,11 +1,11 @@
-# KwakStream v0.1.11 — Android 카메라 컴파일 오류 수정
+# KwakStream v0.1.12 — Android 카메라 컴파일 오류 수정
 
 - v0.1.10에서 `Camera2Controller.kt:500`의 `Size.height()`를 호출하여 Kotlin 컴파일이 실패하던 문제를 고쳤습니다.
 - 카메라 영상의 원본 회전/FIT_CENTER, Camera2·AVFoundation, 렌즈/줌, iOS 시뮬레이터를 변경하지 않았습니다.
 - 테스트: `python3 tests/verify_sources.py`, `python3 tests/verify_preview_size_compile.py`.
 - 다운로드한 ZIP은 기존과 같은 `KwakStream.zip` 이름을 유지합니다.
 - Android 기기 빌드: `kbuild KwakStream.zip`.
-- GitHub 게시: 기존 `scripts/publish-version.sh`로 단일 소스 루트 커밋 및 불변 `v0.1.11` 태그.
+- GitHub 게시: 기존 `scripts/publish-version.sh`로 단일 소스 루트 커밋 및 불변 `v0.1.12` 태그.
 - 실제 APK 빌드, 설치 및 iOS 시뮬레이터 실행은 별도 검증해야 합니다.
 
 ---
@@ -51,3 +51,10 @@ Android Camera2 + iPhone AVFoundation 기반 카메라 미리보기 안정화 �
 - iPhone 실기기는 원래 AVFoundation `.resizeAspect`가 실제 화면 안에 원본 비율을 맞춥니다. 시뮬레이터는 기존 가상 패턴/화면비 테스트를 유지합니다.
 - 스마트폰과 폴더블의 센서·회전 조합은 실제 기기에서 반드시 검증해야 합니다. `PREVIEW sensor=... display=... relative=... buffer=... oriented=...` 로그로 원인 확인 가능합니다.
 - MP4 녹화는 여전히 미구현입니다. Cloudflare/RTMP 기능은 추가하지 않았습니다.
+
+
+## v0.1.12 미리보기 회전 수정
+- Android `TextureView`는 카메라 센서 방향을 이미 처리합니다. 기존 SENSOR_ORIENTATION 재회전은 제거하고 디스플레이 회전 역보정만 합니다.
+- 화면 하단에 `방향: 센서 x° · 화면 y° · 미리보기 보정 z°`가 표시됩니다. 세로 화면에서 0°가 기대되는 정상 케이스를 판별하는 데 사용합니다.
+- 자세한 결과는 Android `KwakStreamCamera2` 태그의 `PREVIEW_APPLIED` 로그에 기록됩니다.
+- 빌드: `kbuild KwakStream.zip` (기존 Termux Studio 방식). 전체 빌드/실기기 테스트는 별도로 필요합니다.
