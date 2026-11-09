@@ -12,9 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -140,24 +138,22 @@ fun CameraScreen() {
                     enabled = granted && state.cameras.any { it.facing == otherFacing }) {
                     Text("카메라 전환: [${if (selected?.facing == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"}]")
                 }
-                // Each choice is an openable cameraIdList entry, never an assumed hidden physical ID.
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    state.cameras.forEach { choice ->
-                        OutlinedButton(onClick = { controller.chooseCamera(choice.id) },
-                            enabled = granted && choice.id != state.selectedId) { Text(choice.title) }
-                    }
-                }
-                // A zoom ratio is not a physical lens identifier.
-                if (state.zoomStops.isNotEmpty()) Text(
-                    "기기 지원 줌 범위 (렌즈 전환점 아님)",
-                    color = Color.LightGray,
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    state.zoomStops.forEach { ratio ->
-                        Button(onClick = { controller.zoomTo(ratio) },
-                            enabled = granted && state.ready && abs(state.selectedZoom - ratio) > 0.005f) {
-                            Text(zoomLabel(ratio))
+                // The CameraManager IDs are diagnostic metadata, not selectable lens
+                // magnifications. Keep actual IDs in the Camera2 logs but DO NOT
+                // render a second, misleading row of lens buttons in the UI.
+                // Show exactly one zoom control derived from Camera2's zoom range.
+                // These are supported zoom ratios, not guaranteed physical lenses.
+                if (state.zoomStops.isNotEmpty()) {
+                    Text("줌 (기기 API 지원 범위)",
+                        color = Color.LightGray,
+                        style = MaterialTheme.typography.labelSmall)
+                    Row(Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.zoomStops.forEach { ratio ->
+                            Button(onClick = { controller.zoomTo(ratio) },
+                                enabled = granted && state.ready && abs(state.selectedZoom - ratio) > 0.005f) {
+                                Text(zoomLabel(ratio))
+                            }
                         }
                     }
                 }

@@ -1,11 +1,18 @@
-# 곽스트림 PROJECT_STATUS — v0.1.12
+# KwakStream v0.1.13 — 카메라 선택 UI 정리
 
-- 작업: `v0.1.11` 세로 화면에서 전면 카메라 미리보기가 약 90° 누운 오류 재현 이미지 기반 분석.
-- 원인: Camera2 `TextureView`가 센서 방향을 이미 처리함에도 앱에서 `cameraRelativeRotation(sensor,display,front)` 전체를 `TextureView.setTransform`에 다시 적용하여 중복 회전.
-- 해결: `TextureView.setTransform`은 디스플레이 역회전만 적용, 센서 방향은 프레임 크기 및 장치 진단에만 사용. 디스플레이/프레임 변경 및 스트림 첫 프레임에서 변환 재적용.
-- 원본 FIT_CENTER 유지. 카메라 전·후면, 줌 선택, 권한 및 오류 복구 로직 보존.
-- Android versionName=0.1.12, versionCode=13; iOS MARKETING_VERSION=0.1.12/build=13. 앱 ID `live.kwak.stream` 변경 없음.
-- 자체 테스트: Kotlin PreviewGeometry 및 화면 변환 32개 조합 통과, 소스 정적 검사 32/32 통과, Kotlin `pickPreviewSize` 추출 컴파일 5/5 통과.
-- 검증되지 않음: Android 전체 Gradle APK, 실기기 카메라 화면·회전, iOS Xcode 빌드/실행.
-- GitHub 커밋/태그는 실행하지 않음. 기존 버전의 ZIP과 태그 보존.
-- 다음 실기기 검사: 세로 전면/후면, 90°/180°/270° 회전, 폴더블 상태 변경 및 재진입. 방향 진단값과 로그 확인.
+## 작업 완료 사항 (소스 단계)
+- Android 사용자 화면의 CameraManager ID 버튼 행 제거. 전면/후면 전환 버튼은 유지.
+- CameraManager.cameraIdList 기반 실제 카메라 조회와 내부 선택, 오류 진단 로그 보존.
+- 지원 줌 범위의 최소/1배/최대 값은 별도의 단일 줌 행으로 유지. 물리 렌즈 전환점 아님.
+- CAM_FRAME은 프레임 수신이라는 뜻만 표현; 화면의 실제 영상 내용 검증으로 간주하지 않음.
+- 회전/FIT_CENTER, 아이콘, 패키지명, iOS AVFoundation·시뮬레이터 기능 변경 없음.
+- Android versionCode=14/versionName=0.1.13, iOS build=14/marketing=0.1.13.
+
+## 테스트 상태
+- 통과: Python 정적 검사 36/36, Kotlin PreviewGeometry 회전 32조합 및 FIT_CENTER 산식 검사, Kotlin 미리보기 크기 함수 컴파일/5케이스, Swift 구문 파싱, ZIP 검증(별도).
+- 미실행: 전체 Android Gradle APK 빌드, iOS Xcode 빌드, 실기기 카메라/검은 화면/회전/줌 동작.
+
+## 남은 문제
+- 사용자가 첨부한 이미지의 검은 미리보기는 아직 원인 미확정. TextureView 프레임 콜백 수신만으로 영상 출력 정상 여부를 보장할 수 없음.
+- MP4 녹화는 미구현; Cloudflare/RTMP는 보류.
+- 기존 v0.1.12 및 GitHub 기존 태그는 변경하지 않음. GitHub 신규 커밋/태그는 미등록.

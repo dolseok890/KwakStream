@@ -1,12 +1,19 @@
-# 곽스트림 v0.1.12 TEST_RESULTS
+# KwakStream v0.1.13 Test Results
 
-- **실패 확인:** 사용자의 v0.1.11 실기기 스크린샷에서 세로 UI에 전면 영상이 옆으로 누움.
-- **원인 분석:** Camera2 `TextureView`의 시스템 자동 센서 회전을 무시하고 앱에서 센서 상대 회전을 중복 적용한 로직 확인. Android 공식 Camera2 가이드 참고.
-- **통과:** Kotlin 순수 로직 회전 테스트; front/back + sensor + display 총 32조합. 전면 sensor=270°, 화면 0°에서 추가 미리보기 회전=0° 확인.
-- **통과:** FIT_CENTER 사각형 bounds/균일 배율 및 미리보기 크기/방향 산식 검증.
-- **통과:** 정적 소스 검사 32/32, Swift 구문 파싱, YAML/JSON/XML 구문.
-- **통과:** 실 Kotlin `pickPreviewSize()` 함수 추출 컴파일, 다섯 가지 입력 검증.
-- **미실행:** 전체 Android APK/Gradle 빌드 (현재 환경에 Android SDK 없음).
-- **미실행:** Android 실기기 전·후면 미리보기 방향, 폴더블 회전, 줌/카메라 전환 회귀.
-- **미실행:** macOS/Xcode iOS 시뮬레이터 빌드 및 iPhone 실기기.
-- **해당 없음:** MP4 녹화/RTMP/Cloudflare는 이번 수정 범위 밖.
+| 항목 | 결과 | 비고 |
+|---|---|---|
+| 기존 카메라 ID 버튼 제거 확인 | 통과 | UI Kotlin 정적 검사 |
+| CameraManager cameraIdList 유지 | 통과 | 코드 정적 검사 |
+| 전·후면 전환 버튼 유지 | 통과 | 코드 정적 검사 |
+| API 줌 UI 단일 행 | 통과 | 코드 정적 검사 |
+| 상태에 camera ID 미표시 / Logcat 진단 유지 | 통과 | 코드 정적 검사 |
+| 전체 소스 정적 검사 | 통과 | 36/36 |
+| 회전 및 FIT_CENTER Kotlin 함수 테스트 | 통과 | 32 sensor/display 조합 및 기타 수치 테스트 |
+| pickPreviewSize Kotlin 함수 테스트 | 통과 | 컴파일 후 5개 케이스 |
+| Swift 소스 구문 파싱 | 통과 | 구문 검사이며 iOS 빌드는 아님 |
+| Android Gradle assembleDebug | 미실행 | 빌드 도구/Android SDK 환경 없음 |
+| iOS Xcode 빌드 및 시뮬레이터 | 미실행 | macOS/Xcode 없음 |
+| 전면·후면 실기기, 검은 화면, 줌 동작 | 미실행 | 기기 검증 필요 |
+| ZIP CRC/필수 파일/버전 | 미실행 | 파일 생성 후 확인 예정 |
+
+**참고:** 이번 버전은 UI 중복 표시 수정이며, 사진의 검은 미리보기 문제가 해결되었다고 판정하지 않습니다.

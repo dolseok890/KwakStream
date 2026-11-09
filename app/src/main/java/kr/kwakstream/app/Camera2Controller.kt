@@ -165,7 +165,8 @@ class Camera2Controller(private val context: Context) {
             awaitingFirstFrame = false
             applyPreviewTransform() // The actual camera stream has now reached TextureView.
             retryCount = 0
-            info("CAM_OK · ${cameraLabel(selectedId)} · 미리보기 정상", ready = true)
+            Log.i(TAG, "CAMERA_FIRST_FRAME cameraId=$selectedId buffer=${selectedSize?.width}x${selectedSize?.height}")
+            info("CAM_FRAME · ${cameraLabel(selectedId)} · 프레임 수신", ready = true)
         }
     }
 
@@ -235,6 +236,7 @@ class Camera2Controller(private val context: Context) {
                 val dir = if (face == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"
                 // List only camera IDs that CameraManager actually reports as openable.
                 // Focal-length (mm) metadata is NOT a camera selector or a zoom stop.
+                // Camera IDs are retained for logs/diagnostics; hidden in the normal UI.
                 CameraChoice(id, face, "$dir ID $id")
             }
             val default = choices.firstOrNull { it.facing == CameraCharacteristics.LENS_FACING_BACK } ?: choices.firstOrNull()
@@ -269,6 +271,7 @@ class Camera2Controller(private val context: Context) {
             if (size == null) { error("E_SIZE", "지원되는 미리보기 해상도가 없습니다"); return }
             selectedSize = size
             applyPreviewTransform()
+            Log.i(TAG, "CAMERA_OPEN cameraId=$id preview=${size.width}x${size.height}")
             info("CAM_OPEN · ${cameraLabel(id)} · ${size.width}×${size.height}")
             opening = true
             manager.openCamera(id, object : CameraDevice.StateCallback() {
@@ -424,7 +427,12 @@ class Camera2Controller(private val context: Context) {
         }
     }
 
-    private fun cameraLabel(id: String?): String = snapshot.cameras.firstOrNull { it.id == id }?.title ?: "ID ${id ?: "?"}"
+    // Human-facing UI state says just front/back. Raw IDs remain in Logcat.
+    private fun cameraLabel(id: String?): String = when (snapshot.cameras.firstOrNull { it.id == id }?.facing) {
+        CameraCharacteristics.LENS_FACING_FRONT -> "전면"
+        CameraCharacteristics.LENS_FACING_BACK -> "후면"
+        else -> "카메라"
+    }
 
     private fun applyPreviewTransform() {
         val view = textureView ?: return
