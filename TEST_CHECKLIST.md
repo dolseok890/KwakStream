@@ -1,26 +1,21 @@
-# 곽스트림 v0.1.8 검증 체크리스트
+# 곽스트림 v0.1.9 테스트 체크리스트
 
-## A. 코드/구성 검증
-- [ ] Android CameraX 라이브러리/호출 없음
-- [ ] Camera2 상태 콜백 세대 검증/중복 open 방지
-- [ ] 권한과 세션 생명주기 처리
-- [ ] 프레임 정지 복구 제한(무한 반복 방지)
-- [ ] 장치 API에 없는 카메라/줌 값 미노출
-- [ ] UI FIT_CENTER 처리 및 방향 변경
-- [ ] Android/iOS 버전과 앱 ID·아이콘 보존
-- [ ] iOS 시뮬레이터 AVFoundation 접근 차단 유지
-- [ ] ZIP 내용/압축 검사
+## 소스/구조
+- [ ] Android Camera2 사용 및 CameraX 의존성 없음
+- [ ] 초점거리·센서 크기·35mm 환산값으로 생성된 가짜 줌 버튼 제거
+- [ ] 카메라 ID는 cameraIdList에 반환된 값만 표시
+- [ ] 줌 하한·1×·상한을 API 지원 범위 안에서만 표시
+- [ ] Android 센서 방향과 화면 회전값 사용, 고정 90° 대체 보정 없음
+- [ ] iOS AVFoundation/가상 시뮬레이터 모드/앱 ID/아이콘 유지
+- [ ] ZIP 무결성 및 버전 정보 일치
 
-## B. 실제 빌드 및 기기 검증
-- [ ] Android Termux Studio `kbuild KwakStream.zip` 성공
-- [ ] GitHub Actions Android `assembleDebug` 성공
-- [ ] GitHub Actions macOS iOS 시뮬레이터 UI 테스트 성공
-- [ ] Android 10 이하 crop-zoom 기기 검증
-- [ ] Android 11 이상 zoomRatio 기기 검증
-- [ ] 후면↔전면 및 카메라 ID 연속 전환 30회
-- [ ] 화면 회전 20회, 백그라운드 복귀 20회, 권한 거절/복구
-- [ ] 일부 렌즈/전면 카메라가 없는 기기에서 오류 없이 비활성화
-- [ ] 검은 화면, TextureView 프레임 정지, 복구 2회 후 오류 표시
-- [ ] 실제 장치의 광각/초광각/망원 줌과 화면 왜곡 여부
-- [ ] 1시간 이상 동작/발열/메모리 누수 및 다른 앱과 충돌 테스트
-- [ ] 기존 iPhone AVFoundation 및 가상 시뮬레이터 동작 회귀
+## 실제 기기 검증 (사용자 기기 필요)
+- [ ] Android 카메라 권한 허용/거부, 재실행
+- [ ] 전·후면 전환 20회 반복 시 프리징/검은 화면 없음
+- [ ] 가로/세로 방향 자동 처리, FIT_CENTER 비율 유지
+- [ ] API에 없는 줌 값 버튼 미표시, 각 배율이 실제 적용되는지 확인
+- [ ] 백그라운드 복귀, 화면 회전, Surface 재생성 시 미리보기 회복
+- [ ] iOS 시뮬레이터 전·후면 가상 전환/UI 테스트
+- [ ] Android `kbuild KwakStream.zip` 및 GitHub Actions iOS 빌드
+
+MP4 녹화는 아직 미구현이며 이 수정의 테스트 대상이 아닙니다.

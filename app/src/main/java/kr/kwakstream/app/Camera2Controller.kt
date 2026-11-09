@@ -28,7 +28,6 @@ import android.view.TextureView
 import androidx.core.content.ContextCompat
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.round
 
@@ -202,10 +201,9 @@ class Camera2Controller(private val context: Context) {
                 val face = meta.get(CameraCharacteristics.LENS_FACING) ?: return@mapNotNull null
                 if (face != CameraCharacteristics.LENS_FACING_FRONT && face != CameraCharacteristics.LENS_FACING_BACK) return@mapNotNull null
                 val dir = if (face == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"
-                // A focal length is descriptive only; never claim an inaccessible physical lens is selectable.
-                val focal = meta.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-                    ?.filter { it > 0f }?.minOrNull()
-                CameraChoice(id, face, "$dir ID $id" + (if (focal != null) " · ${String.format(Locale.US, "%.1f", focal)}mm" else ""))
+                // List only camera IDs that CameraManager actually reports as openable.
+                // Focal-length (mm) metadata is NOT a camera selector or a zoom stop.
+                CameraChoice(id, face, "$dir ID $id")
             }
             val default = choices.firstOrNull { it.facing == CameraCharacteristics.LENS_FACING_BACK } ?: choices.firstOrNull()
             if (choices.none { it.id == selectedId }) selectedId = default?.id
@@ -227,7 +225,11 @@ class Camera2Controller(private val context: Context) {
         val requestGeneration = ++generation
         try {
             val meta = manager.getCameraCharacteristics(id)
-            sensorOrientation = meta.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90
+            // Never assume a generic 90-degree sensor: orientation is device metadata.
+            sensorOrientation = meta.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: run {
+                error("E_ORIENTATION", "기기의 카메라 센서 방향 정보가 없습니다")
+                return
+            }
             isFront = meta.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
             val sizes = meta.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                 ?.getOutputSizes(SurfaceTexture::class.java)
@@ -280,7 +282,7 @@ class Camera2Controller(private val context: Context) {
             val afModes = meta.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: intArrayOf()
             if (afModes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO))
                 builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
-            val stops = supportedZoomStops(meta, manager)
+            val stops = supportedZoomStops(meta)
             selectedZoom = if (stops.any { abs(it - 1f) < 0.005f }) 1f else stops.firstOrNull() ?: 1f
             setRequestZoom(builder, meta, selectedZoom)
             previewBuilder = builder
@@ -415,45 +417,29 @@ class Camera2Controller(private val context: Context) {
     }
 }
 
-/** Uses only actual Camera2 capability values, not synthetic 0.6×/2×/3× presets.
- * Android R+ Zoom Ratio Range may describe a virtual multi-camera including wide-angle.
- * On older Android versions, SCALER max digital zoom supports only >=1× crop.
- * Physical-camera focal lengths are added only if the logical camera exposes a
- * corresponding in-range zoom factor; they do NOT guarantee a particular physical lens.
+/**
+ * Display only the operating system's zoom RANGE endpoints and the neutral 1× value.
+ * These are legal digital/logical zoom values, NOT guaranteed physical lens positions.
+ * Do not infer any "lens stop" from focal lengths, sensor sizes, 35mm-equivalent
+ * values or hidden physical IDs. Camera2 exposes no universal lens-switch table.
  */
-internal fun supportedZoomStops(meta: CameraCharacteristics, manager: CameraManager): List<Float> {
+internal fun supportedZoomStops(meta: CameraCharacteristics): List<Float> {
     val range = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
         meta.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) else null
     val minRatio = range?.lower ?: 1f
     val maxRatio = range?.upper ?: (meta.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
-    if (!minRatio.isFinite() || !maxRatio.isFinite() || minRatio <= 0f || maxRatio < minRatio) return listOf(1f)
-    val results = mutableListOf<Float>()
-    results += minRatio
-    if (1f in minRatio..maxRatio) results += 1f
-    results += maxRatio
-    // Only logical camera zoom ranges can select underlying physical views via ratio.
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && range != null) {
-        val physicalIds = meta.physicalCameraIds
-        val members = physicalIds.mapNotNull { id ->
-            try {
-                val m = manager.getCameraCharacteristics(id)
-                val physical = m.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return@mapNotNull null
-                val focal = m.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-                    ?.firstOrNull { it > 0f } ?: return@mapNotNull null
-                if (physical.width <= 0f || physical.height <= 0f) return@mapNotNull null
-                (focal * 43.2666 / hypot(physical.width.toDouble(), physical.height.toDouble())).toFloat()
-            } catch (e: Exception) { Log.d("KwakStreamCamera2", "Physical metadata inaccessible for $id", e); null }
-        }
-        if (members.size >= 2) {
-            val logicalSensor = meta.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-            val logicalFocal = meta.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull { it > 0f }
-            if (logicalSensor != null && logicalFocal != null && logicalSensor.width > 0 && logicalSensor.height > 0) {
-                val baseline = (logicalFocal * 43.2666 / hypot(logicalSensor.width.toDouble(), logicalSensor.height.toDouble())).toFloat()
-                if (baseline > 0f) results += members.map { it / baseline }.filter { it in minRatio..maxRatio }
-            }
-        }
+    if (!minRatio.isFinite() || !maxRatio.isFinite() || minRatio <= 0f || maxRatio < minRatio) {
+        Log.w("KwakStreamCamera2", "Invalid zoom capability range; hiding zoom controls")
+        return emptyList()
     }
-    return results.filter { it.isFinite() && it > 0f }.distinctBy { round(it * 100f) }.sorted()
+    val stops = mutableListOf(minRatio)
+    if (1f in minRatio..maxRatio) stops.add(1f)
+    stops.add(maxRatio)
+    // No rounding of capability values; remove only nearly identical endpoints.
+    return stops.sorted().fold(mutableListOf<Float>()) { result, value ->
+        if (result.none { abs(it - value) < 0.0001f }) result.add(value)
+        result
+    }
 }
 
 private fun setRequestZoom(builder: CaptureRequest.Builder, meta: CameraCharacteristics, zoom: Float) {

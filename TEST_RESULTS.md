@@ -1,22 +1,18 @@
-# 곽스트림 v0.1.8 검증 결과
+# 곽스트림 v0.1.9 테스트 결과
 
-## 정적 검사
-- 정적 검증은 실행한 항목과 결과만 기록. 컴파일 성공/실기기 작동과 구분한다.
+## 통과 — 실제 실행
+- `python tests/verify_sources.py`: 23/23 정적 코드 및 소스 계약 검사 통과.
+- `swiftc -frontend -parse` iOS Swift 소스 구문 검사 통과 (Xcode 빌드는 아님).
+- Kotlin 독립 테스트: Android Camera2 줌 범위 변환 함수의 소스 본문을 사용해 JVM 단독 컴파일 및 6/6 사례 통과 (API 30/29, 최소/최대, 1×, 부정확한 범위, 값 중복).
+- iOS 카메라 Swift 코드와 Android 앱 아이콘 SHA256 비교: v0.1.8과 동일.
 
-## 미실행/환경 제약
-- Android 앱 컴파일 및 APK 생성: 미실행 (현재 컨테이너에 Android SDK/Gradle 캐시가 없음).
-- iOS Xcode/macOS 기기·시뮬레이터 실행: 미실행 (현재 환경은 Linux).
-- 카메라 단말 전환/실제 줌/미리보기 프레임 복구/발열 검증: 미실행 (실제 Android/iOS 카메라 없음).
-- GitHub 배포 및 CI 실행: 미실행 (사용자 Termux 배포 후 가능).
+## 확인 불가/미실행
+- Android Gradle/APK: 미실행 (현재 컨테이너에 Android SDK 미설치).
+- iOS Xcode 시뮬레이터 빌드/실행: 확인 불가 (macOS/Xcode 필요).
+- 실기기 카메라/줌/회전/오류복구: 미실행.
+- GitHub 업로드·CI: 미실행 (사용자 Termux 배포 시 별도 확인).
 
-결론: 코드 수정 완료. 빌드 성공/동작 검증 완료로 간주하지 않음.
+## 기능 미구현 (이번 작업 제외)
+- MP4 영상·음성 녹화는 미구현. Camera2와 기존 iOS 시뮬레이터 코드 보존만 확인.
 
-## 이번 실제 실행 검증 (2026-11-09)
-- 통과: `python tests/verify_sources.py` — 18/18 정적 검사 성공.
-- 통과: Linux `swiftc -frontend -parse` — Swift 구문 검증 (iOS SDK 빌드 아님).
-- 통과: Android 카메라 소스 및 Gradle의 CameraX 참조 제거 검사.
-- 통과: `v0.1.7` 원본 대비 iOS 카메라/시뮬레이터 Swift 소스, Android 및 iOS 아이콘, GitHub 배포 스크립트 SHA256 동일 확인.
-- 확인 불가: Android Kotlin/Gradle 컴파일 — Android SDK 및 Android Gradle 라이브러리 미설치. 외부 모듈 누락 상태의 kotlinc 진단은 빌드 결과로 간주하지 않음.
-- 확인 불가: Xcode iOS 빌드·시뮬레이터 UI 테스트 — macOS/Xcode 없음.
-- 미실행: 전후면 전환, 줌 렌즈, 실제 Surface 화면 회전, 미리보기 중단 복구 실기기 테스트.
-- 통과: 배포 스크립트가 새 `android-build.yml`을 복사/추적하고 ZIP 필수 파일로 검증하도록 수정.
+완료된 것은 보정값 제거 소스 수정과 위 검사이며, 실제 카메라 정상 작동까지 검증된 상태는 아닙니다.

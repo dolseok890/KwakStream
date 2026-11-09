@@ -1,3 +1,13 @@
+# KwakStream v0.1.9 — 카메라 줌 보정 로직 제거
+
+- Android Camera2: `CameraManager.cameraIdList`가 보고한 전·후면 카메라 ID만 표시합니다.
+- 줌 버튼: `CONTROL_ZOOM_RATIO_RANGE`(Android 11+) 또는 `SCALER_AVAILABLE_MAX_DIGITAL_ZOOM`으로 확인한 최솟값/기본 1×/최댓값만 표시합니다. 임의의 광각·망원 렌즈 배율 계산은 사용하지 않습니다.
+- **줌 배율은 물리 렌즈 ID가 아닙니다.** 실제 물리 렌즈 전환 여부는 제조사 카메라 구현이 결정하며 별도로 확인해야 합니다.
+- 방향: Camera2 센서 방향 메타데이터 + 디스플레이 회전값. `90°` 고정 대체값을 제거했습니다.
+- Android FIT_CENTER, 전·후면 전환, 오류 상태 및 재시도, iOS AVFoundation과 시뮬레이터 모드는 보존했습니다.
+- MP4 녹화는 아직 구현되지 않았습니다. 다음 별도 개발 단계입니다.
+- Cloudflare API와 RTMP/SRT 등 송출 기능은 이번 버전에서 변경하지 않습니다.
+
 # 곽스트림 KwakStream v0.1.8
 
 Android Camera2 + iPhone AVFoundation 기반 카메라 미리보기 안정화 단계.

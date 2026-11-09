@@ -131,6 +131,12 @@ fun CameraScreen() {
                             enabled = granted && choice.id != state.selectedId) { Text(choice.title) }
                     }
                 }
+                // A zoom ratio is not a physical lens identifier.
+                if (state.zoomStops.isNotEmpty()) Text(
+                    "기기 지원 줌 범위 (렌즈 전환점 아님)",
+                    color = Color.LightGray,
+                    style = MaterialTheme.typography.labelSmall
+                )
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.zoomStops.forEach { ratio ->
                         Button(onClick = { controller.zoomTo(ratio) },
