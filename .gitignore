@@ -1,0 +1,12 @@
+# Local build and editor outputs
+.gradle/
+**/build/
+.idea/
+*.iml
+.local.properties
+local.properties
+.DS_Store
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/DerivedData/
+*.xcresult/

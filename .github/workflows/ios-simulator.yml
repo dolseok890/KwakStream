@@ -3,10 +3,6 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version folder, e.g. v0.1.3 (empty = root ios folder)'
-        required: false
 permissions:
   contents: read
 jobs:
@@ -15,26 +11,23 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Locate source
-        id: source
+      - name: Verify flat source and release tag
         shell: bash
-        env:
-          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          VERSION="$REQUESTED_VERSION"
-          if [[ -z "$VERSION" && "$GITHUB_REF_TYPE" == tag ]]; then VERSION="$GITHUB_REF_NAME"; fi
-          if [[ -n "$VERSION" && ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo 'Invalid version' >&2; exit 1; fi
-          if [[ -n "$VERSION" && -f "$VERSION/ios/project.yml" ]]; then ROOT="$VERSION";
-          elif [[ -f ios/project.yml ]]; then ROOT=.;
-          else echo 'iOS source not found for version' >&2; exit 1; fi
-          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          test -f ios/project.yml
+          test -f app/build.gradle.kts
+          VERSION=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([0-9][0-9.]*\)".*/v\1/p' app/build.gradle.kts | head -n 1)
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "$VERSION" ]]; then
+            echo "Tag does not match app version: $GITHUB_REF_NAME != $VERSION" >&2
+            exit 1
+          fi
+          echo "Testing root source $VERSION at $GITHUB_SHA"
       - name: Install XcodeGen and generate project
-        env:
-          SOURCE_ROOT: ${{ steps.source.outputs.root }}
         run: |
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
-          cd "$SOURCE_ROOT/ios"
+          cd ios
           xcodegen generate
       - name: Select and boot simulator
         id: simulator
@@ -48,7 +41,6 @@ jobs:
       - name: Run simulator tests and record video
         env:
           SIM_ID: ${{ steps.simulator.outputs.id }}
-          SOURCE_ROOT: ${{ steps.source.outputs.root }}
         shell: bash
         run: |
           set -u
@@ -56,7 +48,7 @@ jobs:
           xcrun simctl io "$SIM_ID" recordVideo "$RUNNER_TEMP/captures/simulator.mp4" &
           VIDEO_PID=$!
           trap 'kill -INT "$VIDEO_PID" 2>/dev/null || true; wait "$VIDEO_PID" 2>/dev/null || true' EXIT
-          cd "$SOURCE_ROOT/ios"
+          cd ios
           xcodebuild test -project KwakStream.xcodeproj -scheme KwakStream -destination "platform=iOS Simulator,id=$SIM_ID" -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/KwakStream.xcresult" CODE_SIGNING_ALLOWED=NO
       - name: Export screenshots
         if: always()
