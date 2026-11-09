@@ -1,3 +1,19 @@
+## v0.1.14 컴파일 오류 수정 체크리스트
+- [x] `MainActivity.kt`의 `horizontalScroll`/`rememberScrollState` 명시적 import 존재 검증 (정적 검사)
+- [x] Android/iOS 버전 및 앱 ID 유지 검증 (정적 검사)
+- [x] 기존 Camera2·줌·전환·미리보기·iOS 코드가 보존됐는지 검증 (정적 및 파일 비교)
+- [x] Kotlin 미리보기 크기 함수 컴파일·5개 테스트 실행
+- [x] 회전 32조합·FIT_CENTER 수학 테스트 실행
+- [x] Swift 파서 및 소스 검사 (iOS 빌드 아님)
+- [ ] Android 전체 `kbuild KwakStream.zip` 빌드·APK 저장 확인 (사용자 Termux 또는 Android SDK 환경)
+- [ ] 실기기 설치·전후면 카메라·줌·검은 화면·회전 테스트
+- [ ] iOS 시뮬레이터 설치/실행 및 전후면 가상 카메라 회귀 테스트
+- [x] 로컬 ZIP CRC·필수 파일·버전 검사
+- [ ] ZIP 업로드 후 Google Drive 파일 ID·다운로드 링크 확인
+
+
+---
+
 # 곽스트림 v0.1.12 TEST_CHECKLIST
 
 - [x] Android TextureView에 SENSOR_ORIENTATION 중복 적용 코드 제거 (정적 검증)

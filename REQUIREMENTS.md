@@ -1,3 +1,13 @@
+## v0.1.14 확정 변경 범위
+- Android `MainActivity.kt`의 Compose `horizontalScroll`, `rememberScrollState` 참조가 컴파일되도록 누락된 import를 추가한다.
+- 가로 스크롤 UI, 카메라 전·후면 전환, Camera2 엔진, 지원 줌 범위, 방향 처리, FIT_CENTER, 진단, 기존 앱 ID, 아이콘과 기존 데이터를 보존한다.
+- iOS AVFoundation, iPhone 시뮬레이터 가상 카메라 및 기존 소스를 보존한다.
+- Cloudflare/RTMP/MP4 등 신규 기능은 이번 수정에 포함하지 않는다.
+- 컴파일 확인(가능 환경), 소스 회귀 검사, ZIP 무결성 및 빌드 후 기기 검증을 구분해 보고한다.
+
+
+---
+
 # 곽스트림 v0.1.12 확정 요구사항
 
 1. Android Camera2 / iPhone AVFoundation 유지, iOS 시뮬레이터 가상 카메라 유지.

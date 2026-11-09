@@ -1,3 +1,15 @@
+## v0.1.14 — Android Compose import 누락 컴파일 오류 수정
+- `MainActivity.kt:150`의 `Unresolved reference: horizontalScroll`, `Unresolved reference: rememberScrollState` 수정.
+- `androidx.compose.foundation.horizontalScroll` 및 `androidx.compose.foundation.rememberScrollState` 명시적 import 추가. 줌 버튼 가로 스크롤 동작 유지.
+- 기존 Android Camera2 엔진, 렌즈/줌, 전·후면 전환, 센서 회전·FIT_CENTER, iOS AVFoundation/시뮬레이터 및 아이콘 보존.
+- Android 0.1.14 (versionCode 15), iOS 0.1.14 (build 15). 앱 ID `live.kwak.stream` 유지.
+- 실측: 소스 정적 검사 38/38, Kotlin 미리보기 크기 컴파일 및 5개 케이스, 회전·FIT_CENTER 단위 테스트 통과.
+- Android Gradle 전체 빌드와 실기기/시뮬레이터 테스트는 미실행. 이전 Gradle 로그의 import 오류를 정적 검증으로 수정한 상태.
+- GitHub 커밋 및 태그 미등록. ZIP 이름은 기존 `KwakStream.zip` 유지.
+
+
+---
+
 ## v0.1.13 — 카메라 ID와 줌 UI 중복 노출 정리
 - Android 사용자 화면에서 `후면 ID 0 / 전면 ID 1` 등의 원시 CameraManager ID 버튼 제거.
 - 카메라 ID는 CameraManager에서 계속 조회하고 내부 전·후면 전환 및 Logcat 진단에는 유지.
