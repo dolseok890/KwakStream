@@ -1,29 +1,19 @@
 package kr.kwakstream.app
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.view.TextureView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.camera2.interop.Camera2CameraInfo
-import androidx.camera.core.Camera
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.core.resolutionselector.AspectRatioStrategy
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,183 +27,115 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import java.util.Locale
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.abs
-import kotlin.math.hypot
-import kotlin.math.round
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller.hide(WindowInsetsCompat.Type.navigationBars())
-        setContent { CameraScreen() }
-    }
-}
-
-private fun zoomLabel(value: Float): String =
-    if (abs(value - round(value)) < 0.01f) "${round(value).toInt()}×"
-    else String.format(Locale.US, "%.1f×", value)
-
-/** CameraX zoom limits contain DIGITAL zoom. Only offer additional stops when
- * Camera2 enumerates actual physical cameras and their focal/sensor sizes.
- * A ratio is relative to the physical wide-angle camera's field of view; the
- * actual lens selected by CameraX still requires device testing.
- */
-private fun cameraApiLensStops(context: Context, camera: Camera): List<Float> {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return listOf(1f)
-    return try {
-        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val id = Camera2CameraInfo.from(camera.cameraInfo).cameraId
-        val logical = manager.getCameraCharacteristics(id)
-        val ids = logical.physicalCameraIds
-        if (ids.isEmpty()) return listOf(1f)
-        // Effective focal length (relative field of view) corrects for different sensor sizes.
-        val equivalents = ids.flatMap { physicalId ->
-            val characteristics = manager.getCameraCharacteristics(physicalId)
-            val size = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-            val focals = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-            if (size == null || focals == null || size.width <= 0 || size.height <= 0) emptyList()
-            else focals.filter { it > 0 }.map { focal ->
-                focal.toDouble() * 43.2666 / hypot(size.width.toDouble(), size.height.toDouble())
-            }
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.navigationBars())
         }
-        if (equivalents.size < 2) return listOf(1f)
-        // Standard wide cameras are usually near 24–28 mm full-frame equivalent.
-        val baseline = equivalents.minByOrNull { abs(it - 26.0) } ?: return listOf(1f)
-        val limits = camera.cameraInfo.zoomState.value
-        val minRatio = limits?.minZoomRatio ?: 1f
-        val maxRatio = limits?.maxZoomRatio ?: 1f
-        val values = equivalents.map { (it / baseline).toFloat() }
-            .filter { it >= minRatio - 0.01f && it <= maxRatio + 0.01f }
-            .map { round(it * 10f) / 10f }
-            .filter { it > 0f }
-        (values + 1f).distinct().sorted()
-    } catch (t: Exception) {
-        Log.w("KwakStream", "[E_LENS_API] Physical camera metadata unavailable", t)
-        listOf(1f)
+        setContent { CameraScreen() }
     }
 }
 
 @Composable
 fun CameraScreen() {
     val context = LocalContext.current
-    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val controller = remember(context) { Camera2Controller(context.applicationContext) }
+    var state by remember { mutableStateOf(Camera2UiState()) }
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
-    var front by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("카메라 준비 중") }
-    var camera by remember { mutableStateOf<Camera?>(null) }
-    var zoomStops by remember { mutableStateOf(listOf(1f)) }
-    var selectedZoom by remember { mutableFloatStateOf(1f) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
-        if (!it) status = "E_PERMISSION: 카메라 권한이 필요합니다"
+        if (!it) state = state.copy(status = "E_PERMISSION: 카메라 권한이 필요합니다", error = true)
     }
-    LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
     val previewView = remember(context) {
-        PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-            setBackgroundColor(android.graphics.Color.BLACK)
-        }
-    }
-
-    DisposableEffect(granted, front, owner) {
-        var disposed = false
-        var provider: ProcessCameraProvider? = null
-        camera = null
-        zoomStops = listOf(1f)
-        selectedZoom = 1f
-        if (granted) {
-            val future = ProcessCameraProvider.getInstance(context)
-            future.addListener({
-                if (!disposed) {
-                    try {
-                        val cameraProvider = future.get()
-                        provider = cameraProvider
-                        val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-                        if (!cameraProvider.hasCamera(selector)) {
-                            status = "E_NO_CAMERA: ${if (front) "전면" else "후면"} 카메라 없음"
-                        } else {
-                            cameraProvider.unbindAll()
-                            val resolution = ResolutionSelector.Builder()
-                                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
-                                .build()
-                            val preview = Preview.Builder().setResolutionSelector(resolution).build()
-                                .also { it.setSurfaceProvider(previewView.surfaceProvider) }
-                            val bound = cameraProvider.bindToLifecycle(owner, selector, preview)
-                            camera = bound
-                            zoomStops = cameraApiLensStops(context, bound)
-                            status = "${if (front) "전면" else "후면"} 카메라 · API 렌즈 배율 ${zoomStops.size}개"
-                            Log.i("KwakStream", "[CAM_OK] front=$front lens stops=$zoomStops")
-                        }
-                    } catch (e: Exception) {
-                        status = "E_CAMERA: ${e.localizedMessage ?: "카메라 시작 실패"}"
-                        Log.e("KwakStream", "[E_CAMERA] bindToLifecycle", e)
-                    }
+        val view = TextureView(context)
+        view.isOpaque = true
+        view.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                    controller.setTexture(view, surface, width, height)
                 }
-            }, ContextCompat.getMainExecutor(context))
+                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+                    controller.setTexture(view, surface, width, height)
+                }
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                    controller.setTexture(view, null, 0, 0)
+                    return true
+                }
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) { controller.onPreviewFrame() }
+            }
+        view
+    }
+    LaunchedEffect(Unit) { if (!granted) permissionLauncher.launch(Manifest.permission.CAMERA) }
+    DisposableEffect(controller, lifecycleOwner) {
+        controller.onState = { state = it }
+        val lifecycle = lifecycleOwner.lifecycle
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    val nowGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                    granted = nowGranted
+                    controller.setPermission(nowGranted)
+                    controller.setActive(true)
+                }
+                Lifecycle.Event.ON_PAUSE -> controller.setActive(false)
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        controller.setPermission(granted)
+        controller.setActive(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        if (previewView.isAvailable) {
+            controller.setTexture(previewView, previewView.surfaceTexture, previewView.width, previewView.height)
         }
         onDispose {
-            disposed = true
-            provider?.unbindAll()
-            camera = null
+            lifecycle.removeObserver(observer)
+            controller.onState = null
+            controller.release()
         }
     }
-
     val configuration = LocalConfiguration.current
     val aspect = if (configuration.screenWidthDp > configuration.screenHeightDp) 16f / 9f else 9f / 16f
-    BoxWithConstraints(
-        Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
-        contentAlignment = Alignment.Center
-    ) {
-        val previewModifier = if (maxWidth.value / maxHeight.value > aspect)
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
+        contentAlignment = Alignment.Center) {
+        val fit = if (maxWidth.value / maxHeight.value > aspect)
             Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
-        Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
+        Box(fit.background(Color.Black), contentAlignment = Alignment.Center) {
             if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(status, color = Color.White, style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.75f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
-                    Button(onClick = { front = !front }, enabled = granted) {
-                        Text("카메라 전환: [${if (front) "전면" else "후면"}]")
+            Column(Modifier.align(Alignment.BottomCenter).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(state.status, color = if (state.error) Color(0xFFFFB4AB) else Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.78f)).padding(7.dp))
+                if (!granted) Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
+                else if (state.error) OutlinedButton(onClick = { controller.retry() }) { Text("카메라 재시도") }
+                val selected = state.cameras.find { it.id == state.selectedId }
+                val otherFacing = if (selected?.facing == CameraCharacteristics.LENS_FACING_FRONT)
+                    CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
+                Button(onClick = { controller.switchFacing() },
+                    enabled = granted && state.cameras.any { it.facing == otherFacing }) {
+                    Text("카메라 전환: [${if (selected?.facing == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"}]")
+                }
+                // Each choice is an openable cameraIdList entry, never an assumed hidden physical ID.
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    state.cameras.forEach { choice ->
+                        OutlinedButton(onClick = { controller.chooseCamera(choice.id) },
+                            enabled = granted && choice.id != state.selectedId) { Text(choice.title) }
                     }
                 }
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    zoomStops.forEach { factor ->
-                        Button(onClick = {
-                            val current = camera
-                            if (current == null) { status = "E_ZOOM: 카메라 준비 중" }
-                            else {
-                                try {
-                                    val result = current.cameraControl.setZoomRatio(factor)
-                                    result.addListener({
-                                        try {
-                                            result.get()
-                                            selectedZoom = factor
-                                            status = "${if (front) "전면" else "후면"} · API 줌 ${zoomLabel(factor)}"
-                                        } catch (e: Exception) {
-                                            status = "E_ZOOM: ${e.localizedMessage ?: "적용 실패"}"
-                                            Log.e("KwakStream", "[E_ZOOM]", e)
-                                        }
-                                    }, ContextCompat.getMainExecutor(context))
-                                } catch (e: Exception) {
-                                    status = "E_ZOOM: ${e.localizedMessage ?: "줌 범위 오류"}"
-                                    Log.e("KwakStream", "[E_ZOOM]", e)
-                                }
-                            }
-                        }, enabled = granted && camera != null && abs(selectedZoom - factor) > 0.01f) {
-                            Text(zoomLabel(factor))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.zoomStops.forEach { ratio ->
+                        Button(onClick = { controller.zoomTo(ratio) },
+                            enabled = granted && state.ready && abs(state.selectedZoom - ratio) > 0.005f) {
+                            Text(zoomLabel(ratio))
                         }
                     }
                 }

@@ -1,0 +1,486 @@
+package kr.kwakstream.app
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Matrix
+import android.graphics.Rect
+import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraAccessException
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureFailure
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
+import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
+import android.os.SystemClock
+import android.util.Log
+import android.util.Size
+import android.view.Surface
+import android.view.TextureView
+import androidx.core.content.ContextCompat
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.min
+import kotlin.math.round
+
+/** Only IDs returned by CameraManager.cameraIdList are selectable/openable.
+ * Physical IDs belonging to a logical camera are metadata, not guaranteed openable IDs.
+ */
+data class CameraChoice(val id: String, val facing: Int, val title: String)
+
+data class Camera2UiState(
+    val status: String = "카메라 준비 중",
+    val cameras: List<CameraChoice> = emptyList(),
+    val selectedId: String? = null,
+    val zoomStops: List<Float> = emptyList(),
+    val selectedZoom: Float = 1f,
+    val ready: Boolean = false,
+    val error: Boolean = false
+)
+
+/** All Camera2 calls and mutable camera state live on a single HandlerThread.
+ * The UI receives snapshots on the main thread only. Failed sessions never kill the Activity.
+ */
+class Camera2Controller(private val context: Context) {
+    companion object { private const val TAG = "KwakStreamCamera2" }
+
+    private val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private val thread = HandlerThread("KwakStream-Camera2").apply { start() }
+    private val worker = Handler(thread.looper)
+    private val main = Handler(Looper.getMainLooper())
+
+    var onState: ((Camera2UiState) -> Unit)? = null
+    private var snapshot = Camera2UiState()
+    private var released = false
+    private var active = false
+    private var permission = false
+    private var textureView: TextureView? = null
+    private var texture: SurfaceTexture? = null
+    private var surfaceWidth = 0
+    private var surfaceHeight = 0
+    private var generation = 0
+    private var opening = false
+    private var device: CameraDevice? = null
+    private var captureSession: CameraCaptureSession? = null
+    private var previewSurface: Surface? = null
+    private var previewBuilder: CaptureRequest.Builder? = null
+    private var selectedId: String? = null
+    private var selectedZoom = 1f
+    private var selectedSize: Size? = null
+    private var sensorOrientation = 90
+    private var isFront = false
+    private var lastFrameAt = 0L
+    private var awaitingFirstFrame = false
+    private var retryCount = 0
+    private var watchdogToken = 0
+
+    private fun update(state: Camera2UiState) {
+        snapshot = state
+        main.post { if (!released) onState?.invoke(state) }
+    }
+
+    private fun info(text: String, ready: Boolean = false) {
+        Log.i(TAG, text)
+        update(snapshot.copy(status = text, ready = ready, error = false))
+    }
+
+    private fun error(code: String, message: String, problem: Throwable? = null) {
+        Log.e(TAG, "[$code] $message", problem)
+        update(snapshot.copy(status = "$code: $message", ready = false, error = true))
+    }
+
+    fun setPermission(allowed: Boolean) = worker.post {
+        if (released) return@post
+        if (permission == allowed) return@post
+        permission = allowed
+        if (allowed) {
+            discoverCameras()
+            openIfPossible()
+        } else {
+            closeCamera()
+            update(snapshot.copy(status = "E_PERMISSION: 카메라 권한이 필요합니다", ready = false, error = true))
+        }
+    }
+
+    fun setActive(enabled: Boolean) = worker.post {
+        if (released || active == enabled) return@post
+        active = enabled
+        if (enabled) openIfPossible()
+        else { closeCamera(); info("일시 중지 · 카메라 해제") }
+    }
+
+    fun setTexture(view: TextureView, surfaceTexture: SurfaceTexture?, width: Int, height: Int) = worker.post {
+        if (released) return@post
+        val changed = texture !== surfaceTexture || textureView !== view
+        textureView = view
+        texture = surfaceTexture
+        surfaceWidth = width
+        surfaceHeight = height
+        if (surfaceTexture == null) { closeCamera(); info("화면 Surface 대기 중") }
+        else if (changed) { closeCamera(); openIfPossible() }
+        else applyPreviewTransform()
+    }
+
+    fun onPreviewFrame() = worker.post {
+        if (released || captureSession == null) return@post
+        lastFrameAt = SystemClock.elapsedRealtime()
+        if (awaitingFirstFrame) {
+            awaitingFirstFrame = false
+            retryCount = 0
+            info("CAM_OK · ${cameraLabel(selectedId)} · 미리보기 정상", ready = true)
+        }
+    }
+
+    fun switchFacing() = worker.post {
+        if (released) return@post
+        val currentFace = snapshot.cameras.find { it.id == selectedId }?.facing
+        val target = if (currentFace == CameraCharacteristics.LENS_FACING_FRONT)
+            CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
+        val candidate = snapshot.cameras.firstOrNull { it.facing == target }
+        if (candidate == null) { error("E_NO_CAMERA", "${if (target == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"} 카메라가 없습니다"); return@post }
+        chooseOnWorker(candidate.id)
+    }
+
+    fun chooseCamera(cameraId: String) = worker.post {
+        if (!released) chooseOnWorker(cameraId)
+    }
+
+    private fun chooseOnWorker(cameraId: String) {
+        if (snapshot.cameras.none { it.id == cameraId }) {
+            error("E_CAMERA_ID", "기기가 제공하지 않는 카메라 ID"); return
+        }
+        if (selectedId == cameraId) return
+        selectedId = cameraId
+        selectedZoom = 1f
+        retryCount = 0
+        update(snapshot.copy(selectedId = cameraId, zoomStops = emptyList(), selectedZoom = 1f, ready = false))
+        closeCamera()
+        openIfPossible()
+    }
+
+    /** Explicit retry after permission/device failures; no unbounded auto-retry loop. */
+    fun retry() = worker.post {
+        if (released) return@post
+        closeCamera()
+        if (permission) discoverCameras()
+        retryCount = 0
+        openIfPossible()
+    }
+
+    fun zoomTo(value: Float) = worker.post {
+        if (released) return@post
+        if (snapshot.zoomStops.none { abs(it - value) < 0.005f }) {
+            error("E_ZOOM_RANGE", "API에서 확인되지 않은 줌 배율"); return@post
+        }
+        if (device == null || captureSession == null || previewBuilder == null) {
+            error("E_ZOOM", "카메라가 아직 준비되지 않았습니다"); return@post
+        }
+        try {
+            val characteristics = manager.getCameraCharacteristics(selectedId ?: return@post)
+            setRequestZoom(previewBuilder ?: return@post, characteristics, value)
+            val current = captureSession ?: return@post
+            current.setRepeatingRequest((previewBuilder ?: return@post).build(), frameCallback, worker)
+            selectedZoom = value
+            update(snapshot.copy(selectedZoom = value, status = "줌 요청 ${zoomLabel(value)} · 카메라 응답 대기", error = false))
+        } catch (e: Exception) { error("E_ZOOM", "줌 변경 실패", e) }
+    }
+
+    private fun discoverCameras() {
+        if (!permission) return
+        try {
+            val choices = manager.cameraIdList.mapNotNull { id ->
+                val meta = manager.getCameraCharacteristics(id)
+                val face = meta.get(CameraCharacteristics.LENS_FACING) ?: return@mapNotNull null
+                if (face != CameraCharacteristics.LENS_FACING_FRONT && face != CameraCharacteristics.LENS_FACING_BACK) return@mapNotNull null
+                val dir = if (face == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"
+                // A focal length is descriptive only; never claim an inaccessible physical lens is selectable.
+                val focal = meta.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                    ?.filter { it > 0f }?.minOrNull()
+                CameraChoice(id, face, "$dir ID $id" + (if (focal != null) " · ${String.format(Locale.US, "%.1f", focal)}mm" else ""))
+            }
+            val default = choices.firstOrNull { it.facing == CameraCharacteristics.LENS_FACING_BACK } ?: choices.firstOrNull()
+            if (choices.none { it.id == selectedId }) selectedId = default?.id
+            update(snapshot.copy(cameras = choices, selectedId = selectedId))
+            if (choices.isEmpty()) error("E_NO_CAMERA", "사용 가능한 전·후면 카메라 없음")
+        } catch (e: Exception) { error("E_ENUM", "카메라 목록 조회 실패", e) }
+    }
+
+    @SuppressLint("MissingPermission") // permission is rechecked immediately before openCamera.
+    private fun openIfPossible() {
+        if (released || !active || !permission || texture == null || device != null || opening) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permission = false
+            error("E_PERMISSION", "카메라 권한이 해제되었습니다")
+            return
+        }
+        if (snapshot.cameras.isEmpty()) discoverCameras()
+        val id = selectedId ?: return
+        val requestGeneration = ++generation
+        try {
+            val meta = manager.getCameraCharacteristics(id)
+            sensorOrientation = meta.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90
+            isFront = meta.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+            val sizes = meta.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                ?.getOutputSizes(SurfaceTexture::class.java)
+            val size = pickPreviewSize(sizes)
+            if (size == null) { error("E_SIZE", "지원되는 미리보기 해상도가 없습니다"); return }
+            selectedSize = size
+            applyPreviewTransform()
+            info("CAM_OPEN · ${cameraLabel(id)} · ${size.width}×${size.height}")
+            opening = true
+            manager.openCamera(id, object : CameraDevice.StateCallback() {
+                override fun onOpened(camera: CameraDevice) {
+                    if (!valid(requestGeneration)) { camera.close(); return }
+                    opening = false
+                    device = camera
+                    createSession(camera, meta, size, requestGeneration)
+                }
+                override fun onDisconnected(camera: CameraDevice) {
+                    camera.close()
+                    if (!valid(requestGeneration)) return
+                    closeCamera()
+                    error("E_DISCONNECTED", "카메라 연결이 끊겼습니다")
+                }
+                override fun onError(camera: CameraDevice, errorCode: Int) {
+                    camera.close()
+                    if (!valid(requestGeneration)) return
+                    closeCamera()
+                    error("E_DEVICE_$errorCode", "카메라 장치 오류")
+                }
+            }, worker)
+            worker.postDelayed({
+                if (valid(requestGeneration) && opening) {
+                    closeCamera()
+                    error("E_OPEN_TIMEOUT", "카메라 연결 응답 시간 초과")
+                }
+            }, 8000)
+        } catch (e: SecurityException) { opening = false; error("E_PERMISSION", "카메라 접근 권한 없음", e) }
+        catch (e: CameraAccessException) { opening = false; error("E_ACCESS_${e.reason}", "카메라 열기 실패", e) }
+        catch (e: Exception) { opening = false; error("E_OPEN", "카메라 초기화 실패", e) }
+    }
+
+    private fun createSession(camera: CameraDevice, meta: CameraCharacteristics, size: Size, token: Int) {
+        if (!valid(token)) return
+        val tex = texture ?: return
+        try {
+            tex.setDefaultBufferSize(size.width, size.height)
+            val surface = Surface(tex)
+            previewSurface = surface
+            val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+            builder.addTarget(surface)
+            val afModes = meta.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: intArrayOf()
+            if (afModes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO))
+                builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+            val stops = supportedZoomStops(meta, manager)
+            selectedZoom = if (stops.any { abs(it - 1f) < 0.005f }) 1f else stops.firstOrNull() ?: 1f
+            setRequestZoom(builder, meta, selectedZoom)
+            previewBuilder = builder
+            update(snapshot.copy(zoomStops = stops, selectedZoom = selectedZoom, ready = false))
+            @Suppress("DEPRECATION")
+            camera.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    if (!valid(token)) { session.close(); return }
+                    captureSession = session
+                    try {
+                        awaitingFirstFrame = true
+                        lastFrameAt = SystemClock.elapsedRealtime()
+                        session.setRepeatingRequest(builder.build(), frameCallback, worker)
+                        info("CAM_PREVIEW · 첫 프레임 대기")
+                        startWatchdog(token)
+                    } catch (e: Exception) {
+                        error("E_REPEAT", "미리보기 반복 요청 실패", e)
+                        closeCamera()
+                    }
+                }
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    session.close()
+                    if (!valid(token)) return
+                    closeCamera()
+                    error("E_SESSION", "카메라 세션 설정 실패")
+                }
+            }, worker)
+            worker.postDelayed({
+                if (valid(token) && captureSession == null && device != null) {
+                    closeCamera()
+                    error("E_SESSION_TIMEOUT", "카메라 세션 설정 시간 초과")
+                }
+            }, 8000)
+        } catch (e: Exception) {
+            error("E_SESSION_CREATE", "미리보기 세션 생성 실패", e)
+            closeCamera()
+        }
+    }
+
+    private val frameCallback = object : CameraCaptureSession.CaptureCallback() {
+        override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
+            // TextureView frame notification (not capture callback) confirms visible preview.
+            val applied = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) result.get(CaptureResult.CONTROL_ZOOM_RATIO) else null
+            if (applied != null && abs(applied - selectedZoom) < 0.01f && !awaitingFirstFrame && snapshot.ready && snapshot.status.startsWith("줌 요청")) {
+                info("CAM_OK · 줌 ${zoomLabel(applied)} 적용", ready = true)
+            }
+        }
+        override fun onCaptureFailed(session: CameraCaptureSession, request: CaptureRequest, failure: CaptureFailure) {
+            error("E_CAPTURE_${failure.reason}", "프레임 캡처 실패")
+        }
+    }
+
+    private fun startWatchdog(token: Int) {
+        val currentWatchdog = ++watchdogToken
+        worker.postDelayed(object : Runnable {
+            override fun run() {
+                if (!valid(token) || currentWatchdog != watchdogToken || captureSession == null) return
+                val gap = SystemClock.elapsedRealtime() - lastFrameAt
+                if (gap > 8000) {
+                    if (retryCount < 2) {
+                        retryCount++
+                        Log.w(TAG, "[E_STALL] No preview frames $gap ms. Restart $retryCount/2")
+                        closeCamera()
+                        openIfPossible()
+                    } else {
+                        closeCamera()
+                        error("E_STALL", "미리보기 중단 · 복구 2회 실패")
+                    }
+                } else worker.postDelayed(this, 2000)
+            }
+        }, 8000)
+    }
+
+    private fun valid(token: Int) = !released && active && permission && generation == token && texture != null
+
+    private fun closeCamera() {
+        generation++
+        opening = false
+        watchdogToken++
+        awaitingFirstFrame = false
+        try { captureSession?.stopRepeating() } catch (_: Exception) { }
+        try { captureSession?.close() } catch (_: Exception) { }
+        captureSession = null
+        try { device?.close() } catch (_: Exception) { }
+        device = null
+        previewBuilder = null
+        try { previewSurface?.release() } catch (_: Exception) { }
+        previewSurface = null
+        update(snapshot.copy(ready = false))
+    }
+
+    fun release() {
+        worker.post {
+            if (!released) { closeCamera(); released = true; thread.quitSafely() }
+        }
+    }
+
+    private fun cameraLabel(id: String?): String = snapshot.cameras.firstOrNull { it.id == id }?.title ?: "ID ${id ?: "?"}"
+
+    private fun applyPreviewTransform() {
+        val view = textureView ?: return
+        val size = selectedSize ?: return
+        val width = surfaceWidth; val height = surfaceHeight
+        if (width <= 0 || height <= 0) return
+        val rotation = when (view.display?.rotation ?: Surface.ROTATION_0) {
+            Surface.ROTATION_90 -> 90
+            Surface.ROTATION_180 -> 180
+            Surface.ROTATION_270 -> 270
+            else -> 0
+        }
+        val degrees = if (isFront) (sensorOrientation + rotation) % 360
+        else (sensorOrientation - rotation + 360) % 360
+        main.post {
+            if (released || view !== textureView) return@post
+            val radians = Math.toRadians(degrees.toDouble())
+            val c = kotlin.math.cos(radians).toFloat()
+            val s = kotlin.math.sin(radians).toFloat()
+            val rotatedWidth = if (degrees % 180 == 0) size.width.toFloat() else size.height.toFloat()
+            val rotatedHeight = if (degrees % 180 == 0) size.height.toFloat() else size.width.toFloat()
+            val scale = min(width / rotatedWidth, height / rotatedHeight) // FIT_CENTER, no crop/stretch.
+            val src = floatArrayOf(0f,0f, width.toFloat(),0f, width.toFloat(),height.toFloat(),0f,height.toFloat())
+            val dst = FloatArray(8)
+            for (i in 0..3) {
+                val x = if (i == 0 || i == 3) -size.width / 2f else size.width / 2f
+                val y = if (i == 0 || i == 1) -size.height / 2f else size.height / 2f
+                dst[i*2] = width/2f + (x*c - y*s)*scale
+                dst[i*2+1] = height/2f + (x*s + y*c)*scale
+            }
+            val transform = Matrix()
+            if (transform.setPolyToPoly(src, 0, dst, 0, 4)) view.setTransform(transform)
+        }
+    }
+}
+
+/** Uses only actual Camera2 capability values, not synthetic 0.6×/2×/3× presets.
+ * Android R+ Zoom Ratio Range may describe a virtual multi-camera including wide-angle.
+ * On older Android versions, SCALER max digital zoom supports only >=1× crop.
+ * Physical-camera focal lengths are added only if the logical camera exposes a
+ * corresponding in-range zoom factor; they do NOT guarantee a particular physical lens.
+ */
+internal fun supportedZoomStops(meta: CameraCharacteristics, manager: CameraManager): List<Float> {
+    val range = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+        meta.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) else null
+    val minRatio = range?.lower ?: 1f
+    val maxRatio = range?.upper ?: (meta.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
+    if (!minRatio.isFinite() || !maxRatio.isFinite() || minRatio <= 0f || maxRatio < minRatio) return listOf(1f)
+    val results = mutableListOf<Float>()
+    results += minRatio
+    if (1f in minRatio..maxRatio) results += 1f
+    results += maxRatio
+    // Only logical camera zoom ranges can select underlying physical views via ratio.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && range != null) {
+        val physicalIds = meta.physicalCameraIds
+        val members = physicalIds.mapNotNull { id ->
+            try {
+                val m = manager.getCameraCharacteristics(id)
+                val physical = m.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return@mapNotNull null
+                val focal = m.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                    ?.firstOrNull { it > 0f } ?: return@mapNotNull null
+                if (physical.width <= 0f || physical.height <= 0f) return@mapNotNull null
+                (focal * 43.2666 / hypot(physical.width.toDouble(), physical.height.toDouble())).toFloat()
+            } catch (e: Exception) { Log.d("KwakStreamCamera2", "Physical metadata inaccessible for $id", e); null }
+        }
+        if (members.size >= 2) {
+            val logicalSensor = meta.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+            val logicalFocal = meta.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull { it > 0f }
+            if (logicalSensor != null && logicalFocal != null && logicalSensor.width > 0 && logicalSensor.height > 0) {
+                val baseline = (logicalFocal * 43.2666 / hypot(logicalSensor.width.toDouble(), logicalSensor.height.toDouble())).toFloat()
+                if (baseline > 0f) results += members.map { it / baseline }.filter { it in minRatio..maxRatio }
+            }
+        }
+    }
+    return results.filter { it.isFinite() && it > 0f }.distinctBy { round(it * 100f) }.sorted()
+}
+
+private fun setRequestZoom(builder: CaptureRequest.Builder, meta: CameraCharacteristics, zoom: Float) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && meta.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) != null) {
+        builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, zoom)
+    } else {
+        val rect: Rect = meta.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
+        val effective = zoom.coerceAtLeast(1f)
+        val w = (rect.width() / effective).toInt().coerceAtLeast(2)
+        val h = (rect.height() / effective).toInt().coerceAtLeast(2)
+        val left = rect.left + (rect.width() - w) / 2
+        val top = rect.top + (rect.height() - h) / 2
+        builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(left, top, left + w, top + h))
+    }
+}
+
+private fun pickPreviewSize(sizes: Array<Size>?): Size? {
+    val eligible = sizes?.filter { it.width >= 320 && it.height >= 240 } ?: return null
+    if (eligible.isEmpty()) return sizes.firstOrNull()
+    return eligible.minByOrNull {
+        val ratioPenalty = abs(it.width.toDouble() / it.height - 16.0/9.0) * 10_000
+        val pixelsPenalty = abs(it.width * it.height - 1280 * 720) / 1000.0
+        ratioPenalty + pixelsPenalty
+    }
+}
+
+internal fun zoomLabel(value: Float): String {
+    return if (abs(value - round(value)) < .005f) "${round(value).toInt()}×"
+    else String.format(Locale.US, "%.2g×", value)
+}

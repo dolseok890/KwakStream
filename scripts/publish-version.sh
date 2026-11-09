@@ -54,7 +54,7 @@ try:
             raise ValueError(f'Symlinks not accepted: {name}')
         names.append(name)
     must_have = ['app/build.gradle.kts', 'ios/project.yml', 'scripts/publish-version.sh',
-                 '.github/workflows/ios-simulator.yml', 'settings.gradle.kts', 'gradlew']
+                 '.github/workflows/ios-simulator.yml', '.github/workflows/android-build.yml', 'settings.gradle.kts', 'gradlew']
     if any(m not in names for m in must_have):
         raise ValueError('Missing required sources: ' + str([m for m in must_have if m not in names]))
     gradle = z.read('app/build.gradle.kts').decode('utf-8')
@@ -99,7 +99,7 @@ managed_dirs=(app ios gradle scripts)
 managed_files=(build.gradle.kts settings.gradle.kts gradle.properties gradlew \
                README.md CHANGELOG.md PROJECT_STATUS.md REQUIREMENTS.md \
                TEST_CHECKLIST.md TEST_RESULTS.md .gitignore \
-               .github/workflows/ios-simulator.yml)
+               .github/workflows/ios-simulator.yml .github/workflows/android-build.yml)
 
 python3 - "$repo" "$staging" <<'PY'
 import pathlib, shutil, sys
@@ -108,7 +108,7 @@ managed_dirs = ['app', 'ios', 'gradle', 'scripts']
 managed_files = ['build.gradle.kts', 'settings.gradle.kts', 'gradle.properties', 'gradlew',
                  'README.md', 'CHANGELOG.md', 'PROJECT_STATUS.md', 'REQUIREMENTS.md',
                  'TEST_CHECKLIST.md', 'TEST_RESULTS.md', '.gitignore',
-                 '.github/workflows/ios-simulator.yml']
+                 '.github/workflows/ios-simulator.yml', '.github/workflows/android-build.yml']
 for folder in managed_dirs:
     dest = repo / folder
     src = stage / folder

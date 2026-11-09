@@ -1,15 +1,26 @@
-# v0.1.7 테스트 체크리스트
+# 곽스트림 v0.1.8 검증 체크리스트
 
-- [ ] ZIP 구조 검증: Android/iOS 실제 버전과 태그 일치
-- [ ] GitHub 저장소 최신 `main`과 깨끗한 작업 트리 확인
-- [ ] 과거 v0.1.3~v0.1.6 태그 및 해당 버전 소스 복구 가능 확인
-- [ ] 과거 버전 태그·커밋 보존 / 루트 과거 폴더만 정리
-- [ ] 버전 0.1.7 소스가 최상위 app/·ios/로 반영
-- [ ] 새로운 태그가 이미 존재할 경우 안전 중단
-- [ ] 새 커밋, 주석 태그 생성 및 양쪽 GitHub 원격 push 확인
-- [ ] GitHub Actions가 `v0.1.7` 루트 소스 대상으로 동작
-- [ ] `kbuild KwakStream.zip` 기존 동작 보존
-- [ ] Android 앱 실제 빌드 및 기기 카메라 회귀 확인
-- [ ] iPhone 시뮬레이터 빌드·가로/세로 UI 테스트
-- [ ] iPhone 실기기 전·후면 카메라 전환 및 API 줌 검증
-- [ ] Google Drive 버전 폴더에 ZIP 및 실제 파일 ID 확인
+## A. 코드/구성 검증
+- [ ] Android CameraX 라이브러리/호출 없음
+- [ ] Camera2 상태 콜백 세대 검증/중복 open 방지
+- [ ] 권한과 세션 생명주기 처리
+- [ ] 프레임 정지 복구 제한(무한 반복 방지)
+- [ ] 장치 API에 없는 카메라/줌 값 미노출
+- [ ] UI FIT_CENTER 처리 및 방향 변경
+- [ ] Android/iOS 버전과 앱 ID·아이콘 보존
+- [ ] iOS 시뮬레이터 AVFoundation 접근 차단 유지
+- [ ] ZIP 내용/압축 검사
+
+## B. 실제 빌드 및 기기 검증
+- [ ] Android Termux Studio `kbuild KwakStream.zip` 성공
+- [ ] GitHub Actions Android `assembleDebug` 성공
+- [ ] GitHub Actions macOS iOS 시뮬레이터 UI 테스트 성공
+- [ ] Android 10 이하 crop-zoom 기기 검증
+- [ ] Android 11 이상 zoomRatio 기기 검증
+- [ ] 후면↔전면 및 카메라 ID 연속 전환 30회
+- [ ] 화면 회전 20회, 백그라운드 복귀 20회, 권한 거절/복구
+- [ ] 일부 렌즈/전면 카메라가 없는 기기에서 오류 없이 비활성화
+- [ ] 검은 화면, TextureView 프레임 정지, 복구 2회 후 오류 표시
+- [ ] 실제 장치의 광각/초광각/망원 줌과 화면 왜곡 여부
+- [ ] 1시간 이상 동작/발열/메모리 누수 및 다른 앱과 충돌 테스트
+- [ ] 기존 iPhone AVFoundation 및 가상 시뮬레이터 동작 회귀
