@@ -220,10 +220,19 @@ struct CameraScreen: View {
         GeometryReader { geometry in
             // Explicit, measured rectangle: the UI test reads THIS element rather
             // than an accessibility container expanded by padding/overlays.
+            #if targetEnvironment(simulator)
+            // A virtual image has no sensor metadata; keep stable portrait/landscape
+            // test geometry so the simulator rotation tests remain meaningful.
             let landscape = geometry.size.width > geometry.size.height
             let aspect: CGFloat = landscape ? (16.0 / 9.0) : (9.0 / 16.0)
             let fittedWidth = min(geometry.size.width, geometry.size.height * aspect)
             let fittedHeight = fittedWidth / aspect
+            #else
+            // Physical cameras: don't force 9:16 or 16:9. AVFoundation's
+            // .resizeAspect handles the real capture output without cropping.
+            let fittedWidth = geometry.size.width
+            let fittedHeight = geometry.size.height
+            #endif
             ZStack {
                 Color.black
                 ZStack {

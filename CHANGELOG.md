@@ -1,13 +1,14 @@
-# CHANGELOG
+# Changelog
 
-## v0.1.9 — 2026-11-09
-- Android Camera2 카메라 센서 크기·초점거리로 광각/망원 배율을 역산하던 잘못된 `supportedZoomStops` 로직 제거.
-- 노출 카메라 ID는 cameraIdList 그대로, 줌 값은 카메라가 보고한 지원 범위의 하한/1×/상한으로 제한.
-- 물리 렌즈와 디지털 줌 구별 안내 텍스트 추가. 카메라 목록의 mm 표기를 제거.
-- 센서 방향 미조회 시 무조건 90°로 보정하지 않고 `E_ORIENTATION` 오류 처리.
-- Android versionCode 10, versionName 0.1.9 / iOS build 10, version 0.1.9.
-- iOS 코드/시뮬레이터/아이콘 기존 상태 유지.
-- 이번 버전에서 MP4 녹화는 추가되지 않음.
+## v0.1.10
+- Android Camera2 공식 상대 회전 공식으로 수정: 전면 sensor−display, 후면 sensor+display.
+- Camera2 지원 해상도를 16:9에 맞춰 강제로 선택하던 코드를 제거하고 센서 원본 비율에 가까운 크기를 우선 선택.
+- Android Compose의 9:16/16:9 강제 미리보기 영역 제거. TextureView는 전체 영역에 배치하고 실제 프레임을 균일 배율 FIT_CENTER로 배치.
+- Android 12+ 지원 기기의 HAL 자동 회전 및 크롭 비활성화.
+- Display 180° 변경에 대응하도록 프레임 업데이트 시 디스플레이 회전 변경 감지.
+- iOS 실기기 AVFoundation `.resizeAspect`에 미리보기 비율 처리를 맡기고, 시뮬레이터 테스트 패턴/레이아웃 유지.
+- 기존 Camera2/AVFoundation 렌즈 조회·줌·프리징 감시·권한·오류 로직 유지.
+- 새 소스 전용 Kotlin 방향/비율 테스트 추가. Android versionCode 11, iOS build 11.
 
-## v0.1.8
-- Android Camera2 전환/미리보기/카메라 선택, API 범위 및 계산 기반 줌, 오류 복구 초기 구현.
+## v0.1.9
+- 35mm 초점거리 보정 기반 합성 줌 값 제거. API 범위 및 실제 카메라 ID만 표시.

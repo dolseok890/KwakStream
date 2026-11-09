@@ -6,6 +6,7 @@ import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Bundle
 import android.view.TextureView
+import android.view.Surface
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -58,19 +58,32 @@ fun CameraScreen() {
     }
     val previewView = remember(context) {
         val view = TextureView(context)
-        view.isOpaque = true
+        view.isOpaque = false // show parent black where the FIT_CENTER frame doesn't fill.
         view.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                var previousDisplayRotation = Surface.ROTATION_0
+                fun syncRotation() {
+                    val rotation = view.display?.rotation ?: Surface.ROTATION_0
+                    if (previousDisplayRotation != rotation) {
+                        previousDisplayRotation = rotation
+                        controller.onDisplayRotationChanged(rotation)
+                    }
+                }
                 override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                    syncRotation()
                     controller.setTexture(view, surface, width, height)
                 }
                 override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+                    syncRotation()
                     controller.setTexture(view, surface, width, height)
                 }
                 override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                     controller.setTexture(view, null, 0, 0)
                     return true
                 }
-                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) { controller.onPreviewFrame() }
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+                    syncRotation() // detects 180-degree device turns without a size change.
+                    controller.onPreviewFrame()
+                }
             }
         view
     }
@@ -102,13 +115,11 @@ fun CameraScreen() {
             controller.release()
         }
     }
-    val configuration = LocalConfiguration.current
-    val aspect = if (configuration.screenWidthDp > configuration.screenHeightDp) 16f / 9f else 9f / 16f
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
+    // Never force a 9:16 / 16:9 viewport on a camera that exposes 4:3 or
+    // another native output shape. The camera transform fits its real frame.
+    Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
         contentAlignment = Alignment.Center) {
-        val fit = if (maxWidth.value / maxHeight.value > aspect)
-            Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
-        Box(fit.background(Color.Black), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
             Column(Modifier.align(Alignment.BottomCenter).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {

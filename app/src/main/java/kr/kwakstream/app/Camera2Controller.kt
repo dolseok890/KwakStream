@@ -75,7 +75,8 @@ class Camera2Controller(private val context: Context) {
     private var selectedId: String? = null
     private var selectedZoom = 1f
     private var selectedSize: Size? = null
-    private var sensorOrientation = 90
+    private var sensorOrientation = 0
+    private var displayRotation = Surface.ROTATION_0
     private var isFront = false
     private var lastFrameAt = 0L
     private var awaitingFirstFrame = false
@@ -129,6 +130,13 @@ class Camera2Controller(private val context: Context) {
         else applyPreviewTransform()
     }
 
+    /** UI-thread display rotation notification; also handles 180° turns with no size change. */
+    fun onDisplayRotationChanged(rotation: Int) = worker.post {
+        if (released || displayRotation == rotation) return@post
+        displayRotation = rotation
+        applyPreviewTransform()
+    }
+
     fun onPreviewFrame() = worker.post {
         if (released || captureSession == null) return@post
         lastFrameAt = SystemClock.elapsedRealtime()
@@ -160,6 +168,7 @@ class Camera2Controller(private val context: Context) {
         if (selectedId == cameraId) return
         selectedId = cameraId
         selectedZoom = 1f
+        selectedSize = null // do not apply the previous camera's shape to the new camera.
         retryCount = 0
         update(snapshot.copy(selectedId = cameraId, zoomStops = emptyList(), selectedZoom = 1f, ready = false))
         closeCamera()
@@ -233,7 +242,7 @@ class Camera2Controller(private val context: Context) {
             isFront = meta.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
             val sizes = meta.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                 ?.getOutputSizes(SurfaceTexture::class.java)
-            val size = pickPreviewSize(sizes)
+            val size = pickPreviewSize(sizes, meta.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE))
             if (size == null) { error("E_SIZE", "지원되는 미리보기 해상도가 없습니다"); return }
             selectedSize = size
             applyPreviewTransform()
@@ -279,6 +288,16 @@ class Camera2Controller(private val context: Context) {
             previewSurface = surface
             val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
             builder.addTarget(surface)
+            // Android 12+ may auto-rotate AND CROP the HAL output in portrait apps.
+            // We apply orientation ourselves and require a full FIT_CENTER image.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val modes = meta.get(CameraCharacteristics.SCALER_AVAILABLE_ROTATE_AND_CROP_MODES)
+                    ?: intArrayOf()
+                if (modes.contains(CaptureRequest.SCALER_ROTATE_AND_CROP_NONE)) {
+                    builder.set(CaptureRequest.SCALER_ROTATE_AND_CROP,
+                        CaptureRequest.SCALER_ROTATE_AND_CROP_NONE)
+                }
+            }
             val afModes = meta.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: intArrayOf()
             if (afModes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO))
                 builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
@@ -387,23 +406,28 @@ class Camera2Controller(private val context: Context) {
         val size = selectedSize ?: return
         val width = surfaceWidth; val height = surfaceHeight
         if (width <= 0 || height <= 0) return
-        val rotation = when (view.display?.rotation ?: Surface.ROTATION_0) {
+        val displayDegrees = when (displayRotation) {
             Surface.ROTATION_90 -> 90
             Surface.ROTATION_180 -> 180
             Surface.ROTATION_270 -> 270
             else -> 0
         }
-        val degrees = if (isFront) (sensorOrientation + rotation) % 360
-        else (sensorOrientation - rotation + 360) % 360
+        // The camera outputs sensor-coordinate pixels, NOT already upright UI pixels.
+        // Follow the official Camera2 relative-rotation equation; no additional
+        // hard-coded lens or 9:16/16:9 correction is applied.
+        val degrees = cameraRelativeRotation(sensorOrientation, displayDegrees, isFront)
+        val (orientedWidth, orientedHeight) = orientedPreviewSize(size.width, size.height, degrees)
+        val scale = fitCenterScale(orientedWidth, orientedHeight, width, height)
+        val generationAtRequest = generation
         main.post {
-            if (released || view !== textureView) return@post
+            if (released || view !== textureView || generationAtRequest != generation) return@post
             val radians = Math.toRadians(degrees.toDouble())
             val c = kotlin.math.cos(radians).toFloat()
             val s = kotlin.math.sin(radians).toFloat()
-            val rotatedWidth = if (degrees % 180 == 0) size.width.toFloat() else size.height.toFloat()
-            val rotatedHeight = if (degrees % 180 == 0) size.height.toFloat() else size.width.toFloat()
-            val scale = min(width / rotatedWidth, height / rotatedHeight) // FIT_CENTER, no crop/stretch.
-            val src = floatArrayOf(0f,0f, width.toFloat(),0f, width.toFloat(),height.toFloat(),0f,height.toFloat())
+            // Map the entire uncut camera frame to the measured view rectangle.
+            // Uniform scaling + centering = FIT_CENTER; black bars are expected.
+            val src = floatArrayOf(0f, 0f, width.toFloat(), 0f,
+                width.toFloat(), height.toFloat(), 0f, height.toFloat())
             val dst = FloatArray(8)
             for (i in 0..3) {
                 val x = if (i == 0 || i == 3) -size.width / 2f else size.width / 2f
@@ -411,10 +435,14 @@ class Camera2Controller(private val context: Context) {
                 dst[i*2] = width/2f + (x*c - y*s)*scale
                 dst[i*2+1] = height/2f + (x*s + y*c)*scale
             }
-            val transform = Matrix()
-            if (transform.setPolyToPoly(src, 0, dst, 0, 4)) view.setTransform(transform)
+            val matrix = Matrix()
+            if (matrix.setPolyToPoly(src, 0, dst, 0, 4)) view.setTransform(matrix)
         }
+        Log.i(TAG, "PREVIEW sensor=$sensorOrientation display=$displayDegrees " +
+            "relative=$degrees buffer=${size.width}x${size.height} " +
+            "oriented=${orientedWidth}x${orientedHeight} view=${width}x${height} FIT_CENTER")
     }
+
 }
 
 /**
@@ -456,14 +484,22 @@ private fun setRequestZoom(builder: CaptureRequest.Builder, meta: CameraCharacte
     }
 }
 
-private fun pickPreviewSize(sizes: Array<Size>?): Size? {
-    val eligible = sizes?.filter { it.width >= 320 && it.height >= 240 } ?: return null
-    if (eligible.isEmpty()) return sizes.firstOrNull()
-    return eligible.minByOrNull {
-        val ratioPenalty = abs(it.width.toDouble() / it.height - 16.0/9.0) * 10_000
-        val pixelsPenalty = abs(it.width * it.height - 1280 * 720) / 1000.0
-        ratioPenalty + pixelsPenalty
-    }
+/** Prefer the camera's native sensor aspect ratio instead of forcing 16:9.
+ * Only choose an actual Camera2-supported SurfaceTexture output size.
+ */
+private fun pickPreviewSize(sizes: Array<Size>?, sensorRect: Rect?): Size? {
+    val available = sizes?.toList().orEmpty()
+    if (available.isEmpty()) return null
+    val eligible = available.filter { it.width >= 320 && it.height >= 240 }
+        .ifEmpty { available }
+    val nativeAspect = sensorRect?.takeIf { it.width() > 0 && it.height() > 0 }
+        ?.let { maxOf(it.width(), it.height()).toDouble() / minOf(it.width(), it.height()) }
+    return eligible.minWithOrNull(
+        compareBy<Size> {
+            if (nativeAspect == null) 0.0
+            else abs(maxOf(it.width, it.height()).toDouble() / minOf(it.width, it.height()) - nativeAspect)
+        }.thenBy { abs(it.width.toLong() * it.height - 1280L * 960L) }
+    )
 }
 
 internal fun zoomLabel(value: Float): String {

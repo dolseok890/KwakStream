@@ -1,17 +1,13 @@
-# 곽스트림 v0.1.9 — 확정 변경사항
+# KwakStream v0.1.10 — 카메라 원본 방향·비율 유지
 
-## 이번 수정 범위
-1. v0.1.8 Camera2 카메라/줌 코드의 센서 크기·초점거리 기반 35mm 환산 배율 생성 제거.
-2. Camera2 API가 제공하는 공개 카메라 ID만 전·후면 선택 목록에 사용. ID에 초점거리(mm)를 붙이지 않음.
-3. 줌 버튼은 기기 지원 범위의 하한, 가능한 경우 기본 1×, 상한만 사용. 물리 렌즈 전환 버튼이라고 주장하지 않음.
-4. 방향 자동화에 사용하는 SENSOR_ORIENTATION 부재 시 임의의 90° 기본값 대신 오류 표기.
-5. Camera2 단일 세션, 미리보기 FIT_CENTER, 전·후면 전환, 오류 복구/재시도, iOS AVFoundation/시뮬레이터 유지.
+확정: 카메라가 세로 방향 영상을 생성하면 세로 미리보기가 보여야 하며, 강제로 가로 비율에 맞추거나 화면을 채우기 위해 자르지 않는다.
 
-## 변경하지 않을 것
-- 앱 ID live.kwak.stream, B안 아이콘, GitHub 루트 커밋·버전 태그 배포, Android kbuild 스크립트.
-- RTMP/SRT, Cloudflare 원격 제어 기능은 추가하지 않음.
-- MP4 녹화는 미구현으로 남아 있으며, 구현 완료로 표기하지 않음.
-
-## 향후
-- 실기기별 렌즈/줌 API 동작 확인 및 방향·미리보기 검증.
-- MP4 영상·음성 녹화 기능 별도 개발 후 검증.
+- Android Camera2 / iOS AVFoundation 엔진 유지.
+- Android: SENSOR_ORIENTATION, LENS_FACING, 현재 Display 회전으로 상대 회전 공식 계산(임의 고정 회전값 금지).
+- Android: Camera2에서 허용하는 SurfaceTexture 출력 크기만 사용하며 가능하면 센서 원본 종횡비에 가까운 것을 선택한다. 16:9 강제 선택 제거.
+- Android: TextureView를 화면 전체 뷰포트로 사용하되 **카메라 프레임 전체**를 균일 배율로 FIT_CENTER 표시. 화면이 남으면 검은 여백 유지.
+- Android 12+: SCALER_ROTATE_AND_CROP_NONE 지원 시 HAL의 자동 회전·크롭 비활성화.
+- iOS: 실기기 AVCaptureVideoPreviewLayer.resizeAspect가 비율을 관리하며 강제 9:16 프레임을 제거. 시뮬레이터 기존 비율 검사와 가상 카메라 유지.
+- 전후면 전환, 실제 API ID/줌 범위, 오류 코드, 재시도, 앱 복귀, 상태바/내비게이션바 동작을 유지.
+- Cloudflare/RTMP/녹화(MP4)는 추가하지 않음. 특히 MP4는 아직 미구현.
+- GitHub main 루트 최신 소스 + 변경 커밋/불변 태그. 기존 태그 및 Drive 버전 보호.

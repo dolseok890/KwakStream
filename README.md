@@ -30,3 +30,12 @@ Android Camera2 + iPhone AVFoundation 기반 카메라 미리보기 안정화 �
 - 화면 하단 상태 코드 `E_*`가 표시되면 로그캣에서 `KwakStreamCamera2` 검색.
 - 프레임이 8초 멈추면 최대 2회 세션을 재시작하며, 계속 실패하면 `E_STALL`을 표시.
 - 권한 오류/카메라 장치 오류가 지속되면 카메라 재시도를 누르거나 앱 재실행.
+
+## v0.1.10 수정: 센서 원본 방향·비율 그대로 미리보기
+- Android는 더 이상 화면을 강제로 9:16/16:9로 제한하거나 출력 해상도를 무조건 16:9로 선택하지 않습니다.
+- Camera2의 `SENSOR_ORIENTATION`, 전후면, 현재 디스플레이 회전값으로 공식 상대 회전값만 적용합니다. 보정 각도를 임의로 추가하지 않습니다.
+- TextureView의 실제 카메라 출력 비율로 FIT_CENTER 축척을 계산합니다. 검은 여백은 정상이며 인위적인 크롭이나 늘림은 없습니다.
+- API 31 이상 지원되는 장치에서는 HAL `SCALER_ROTATE_AND_CROP_NONE`을 설정해 중복 크롭을 방지합니다.
+- iPhone 실기기는 원래 AVFoundation `.resizeAspect`가 실제 화면 안에 원본 비율을 맞춥니다. 시뮬레이터는 기존 가상 패턴/화면비 테스트를 유지합니다.
+- 스마트폰과 폴더블의 센서·회전 조합은 실제 기기에서 반드시 검증해야 합니다. `PREVIEW sensor=... display=... relative=... buffer=... oriented=...` 로그로 원인 확인 가능합니다.
+- MP4 녹화는 여전히 미구현입니다. Cloudflare/RTMP 기능은 추가하지 않았습니다.
