@@ -235,9 +235,9 @@ struct CameraScreen: View {
                 .clipShape(Circle())
         }.buttonStyle(.plain).accessibilityLabel(label)
     }
-    private func panelPlaceholder(_ icon: String, _ title: String) -> some View {
+    private func panelPlaceholder(_ icon: String, _ title: String, size: CGFloat) -> some View {
         VStack(spacing: 0) {
-            Image(systemName: icon).frame(width: 48, height: 48)
+            Image(systemName: icon).font(.system(size: size * 0.52)).frame(width: size, height: size)
                 .background(Color.primary.opacity(0.12)).clipShape(Circle())
             Text(title).font(.caption2)
         }.foregroundColor(.primary.opacity(0.45)).accessibilityLabel("\(title) 준비 중")
@@ -248,8 +248,9 @@ struct CameraScreen: View {
             // than an accessibility container expanded by padding/overlays.
             let landscape = geometry.size.width > geometry.size.height
             let aspect: CGFloat = landscape ? (16.0 / 9.0) : (9.0 / 16.0)
-            let fittedWidth = max(0, min(geometry.size.width - 80, max(1, geometry.size.height - 56) * aspect))
+            let fittedWidth = max(0, min(geometry.size.width - 88, max(1, geometry.size.height - 56) * aspect))
             let fittedHeight = fittedWidth / aspect
+            let controlSize = max(36, min(56, (geometry.size.height - 114) / 5))
             ZStack {
                 Color.black
                 ZStack {
@@ -266,7 +267,7 @@ struct CameraScreen: View {
                         .accessibilityValue(String(format: "%.2f x %.2f", fittedWidth, fittedHeight))
                 }
                 .frame(width: fittedWidth, height: fittedHeight)
-                .offset(x: -40, y: -28)
+                .offset(x: -44, y: -28)
                 VStack(spacing: 6) {
                         Text(model.status)
                             .font(.caption)
@@ -310,25 +311,26 @@ struct CameraScreen: View {
                         .padding(.horizontal, 5)
                     }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.trailing, 80)
+                .padding(.trailing, 88)
                 .padding(.bottom, 4)
             }
             .overlay(alignment: .trailing) {
                 VStack(spacing: 4) {
                     Button { model.switchCamera() } label: {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .frame(width: 48, height: 48)
+                            .font(.system(size: controlSize * 0.52))
+                            .frame(width: controlSize, height: controlSize)
                             .foregroundColor(.white)
                             .background(Color(red: 25/255, green: 118/255, blue: 210/255))
                             .clipShape(Circle())
                     }.accessibilityIdentifier("switchCamera")
                     Text("카메라").font(.caption2)
-                    panelPlaceholder("mic", "마이크")
-                    panelPlaceholder("circle.fill", "LIVE")
-                    panelPlaceholder("record.circle", "녹화")
-                    panelPlaceholder("square.3.layers.3d", "오버레이")
+                    panelPlaceholder("mic", "마이크", size: controlSize)
+                    panelPlaceholder("circle.fill", "LIVE", size: controlSize + 8)
+                    panelPlaceholder("record.circle", "녹화", size: controlSize)
+                    panelPlaceholder("square.3.layers.3d", "오버레이", size: controlSize)
                 }
-                .frame(width: 80)
+                .frame(width: 88)
                 .frame(maxHeight: .infinity)
                 .background(colorScheme == .dark ? Color(red: 24/255, green: 26/255, blue: 30/255) : Color(red: 246/255, green: 246/255, blue: 249/255))
             }

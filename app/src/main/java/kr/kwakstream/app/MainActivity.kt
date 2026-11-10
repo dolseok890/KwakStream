@@ -161,11 +161,11 @@ fun CameraScreen() {
         Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
-        val availableWidth = (maxWidth - 80.dp).coerceAtLeast(0.dp)
+        val availableWidth = (maxWidth - 88.dp).coerceAtLeast(0.dp)
         val availableHeight = (maxHeight - 56.dp).coerceAtLeast(1.dp)
         val previewWidth = minOf(availableWidth, availableHeight * aspect)
         val previewHeight = previewWidth / aspect
-        Box(Modifier.fillMaxSize().padding(end = 80.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().padding(end = 88.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.fillMaxSize().padding(bottom = 56.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
                 if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
@@ -230,28 +230,29 @@ fun CameraScreen() {
 
 @Composable
 private fun RightControlPanel(modifier: Modifier, enabled: Boolean, onSwitchCamera: () -> Unit) {
-    Column(
-        modifier = modifier.fillMaxHeight().width(80.dp)
-            .background(MaterialTheme.colorScheme.surface).padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
-    ) {
-        ControlButton(Icons.Default.Refresh, "카메라", enabled, onSwitchCamera)
-        ControlButton(Icons.Default.Mic, "마이크", false) { }
-        ControlButton(Icons.Default.PlayArrow, "LIVE", false) { }
-        ControlButton(Icons.Default.RadioButtonChecked, "녹화", false) { }
-        ControlButton(Icons.Default.Layers, "오버레이", false) { }
+    BoxWithConstraints(modifier = modifier.fillMaxHeight().width(88.dp)
+        .background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+        val size = ((maxHeight - 114.dp) / 5).coerceIn(36.dp, 56.dp)
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
+            ControlButton(Icons.Default.Refresh, "카메라", enabled, size, onSwitchCamera)
+            ControlButton(Icons.Default.Mic, "마이크", false, size) { }
+            ControlButton(Icons.Default.PlayArrow, "LIVE", false, size + 8.dp) { }
+            ControlButton(Icons.Default.RadioButtonChecked, "녹화", false, size) { }
+            ControlButton(Icons.Default.Layers, "오버레이", false, size) { }
+        }
     }
 }
 
 @Composable
-private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled,
-            modifier = Modifier.size(48.dp).background(
+            modifier = Modifier.size(size).background(
                 if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
             ).semantics { contentDescription = if (enabled) label else "$label (준비 중)" }) {
-            Icon(symbol, contentDescription = null, tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+            Icon(symbol, contentDescription = null, modifier = Modifier.size(size * 0.52f),
+                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
         }
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
