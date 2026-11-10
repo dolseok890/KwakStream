@@ -163,7 +163,7 @@ internal class Camera2Controller(
                     val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                         addTarget(surface)
                         set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                        val modes = characteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES).orEmpty()
+                        val modes = characteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: intArrayOf()
                         if (modes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)) {
                             set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
                         }
@@ -337,7 +337,7 @@ internal class Camera2Controller(
         previewSize = null
     }
 
-    private fun selectPreviewSize(sizes: Array<Size>): Size? {
+    private fun selectPreviewSize(sizes: Array<out Size>): Size? {
         // v0.1.7 preferred 16:9 and allowed other ratios as fallback.
         if (sizes.isEmpty()) return null
         val targetRatio = 16.0 / 9.0

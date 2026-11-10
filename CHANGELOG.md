@@ -10,3 +10,8 @@
 ## v0.1.6 — 카메라 오류 및 API 줌
 - 이전 버전에서 도입한 iPhone 시뮬레이터 가상 카메라 전환 및 테스트 프레임 유지.
 - iOS 오류 코드, 실기기 AVFoundation 줌 후보, Android Camera2 줌 후보 유지.
+
+## v0.1.16 — Camera2 컴파일 오류 수정
+- Camera2Controller.kt `selectPreviewSize` 파라미터를 `Array<out Size>`로 변경해 Camera2의 output size 배열을 받도록 함.
+- `CONTROL_AF_AVAILABLE_MODES`의 nullable `IntArray`에 `orEmpty()` 대신 `?: intArrayOf()` 사용.
+- v0.1.15 코드를 기준으로 해당 2개 컴파일 오류와 배포 버전만 변경. UI, 회전 처리, 줌, iOS AVFoundation 변경 없음.

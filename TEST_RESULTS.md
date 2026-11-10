@@ -13,3 +13,8 @@
 - Android Termux Studio `kbuild` 및 실제 기기 카메라 기능: 미실행.
 - iPhone 실기기 카메라 전환/줌 및 시뮬레이터 실행: 미실행.
 - Google Drive 업로드: 파일 ID 및 링크 검증 후 별도 보고.
+
+## v0.1.16 테스트
+- 통과: Camera2Controller.kt 지정 오류 2개 수정 및 Kotlin 컴파일러를 이용한 타입 관련 단위 검증
+- 통과: ZIP 무결성, v0.1.15 기반 소스 diff, 기존 UI/Swift/아이콘 바이트 동일성
+- 미실행: Android 전체 assembleDebug, 실기기 카메라 미리보기/전환, iOS CI 빌드
