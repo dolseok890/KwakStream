@@ -162,13 +162,15 @@ fun CameraScreen() {
         contentAlignment = Alignment.Center
     ) {
         val availableWidth = (maxWidth - 80.dp).coerceAtLeast(0.dp)
-        val availableHeight = (maxHeight - 116.dp).coerceAtLeast(1.dp)
+        val availableHeight = (maxHeight - 56.dp).coerceAtLeast(1.dp)
         val previewWidth = minOf(availableWidth, availableHeight * aspect)
         val previewHeight = previewWidth / aspect
         Box(Modifier.fillMaxSize().padding(end = 80.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
-            if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            PreviewGuides(Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().padding(bottom = 56.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
+                if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                PreviewGuides(Modifier.fillMaxSize())
+            }
         }
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
