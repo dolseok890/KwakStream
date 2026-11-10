@@ -248,7 +248,7 @@ struct CameraScreen: View {
             // than an accessibility container expanded by padding/overlays.
             let landscape = geometry.size.width > geometry.size.height
             let aspect: CGFloat = landscape ? (16.0 / 9.0) : (9.0 / 16.0)
-            let fittedWidth = min(geometry.size.width, geometry.size.height * aspect)
+            let fittedWidth = max(0, min(geometry.size.width - 68, geometry.size.height * aspect))
             let fittedHeight = fittedWidth / aspect
             ZStack {
                 Color.black
@@ -310,6 +310,7 @@ struct CameraScreen: View {
                     }
                     .padding(.bottom, 12)
                 }
+                .offset(x: -34)
             }
             .overlay(alignment: .trailing) {
                 VStack(spacing: 0) {

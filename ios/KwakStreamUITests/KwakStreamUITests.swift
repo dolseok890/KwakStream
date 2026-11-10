@@ -23,28 +23,16 @@ final class KwakStreamUITests: XCTestCase {
         add(attachment)
     }
 
-    func testPreviewAreaAspectAcrossRotation() {
-        XCUIDevice.shared.orientation = .portrait
+    func testLandscapePreviewAndControls() {
+        XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
         app.launch()
         let area = preview(in: app)
         XCTAssertTrue(area.waitForExistence(timeout: 15))
+        verifyAspect(area, widthOverHeight: 16.0/9.0, label: "landscape")
         let button = app.buttons["switchCamera"]
         XCTAssertTrue(button.waitForExistence(timeout: 5))
-        verifyAspect(area, widthOverHeight: 9.0/16.0, label: "portrait")
-        XCTAssertTrue(area.frame.intersects(button.frame))
-
-        XCUIDevice.shared.orientation = .landscapeLeft
-        let rotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            let frame = area.frame
-            guard frame.width > 0 && frame.height > 0 else { return false }
-            let ratio = frame.width / frame.height
-            print("[ROTATION] device=\(XCUIDevice.shared.orientation.rawValue) frame=\(frame) ratio=\(ratio)")
-            return ratio > 1.0 && abs(ratio - 16.0/9.0) < 0.015
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 15), .completed,
-                       "가로 전환 실패: 방향/접근성 측정 영역/안전영역 확인 필요")
-        verifyAspect(area, widthOverHeight: 16.0/9.0, label: "landscape")
+        XCTAssertFalse(area.frame.intersects(button.frame), "조작 버튼이 미리보기와 겹칩니다")
     }
 
     func testSimulatorSwitchAndZoomDoNotOpenCamera() {

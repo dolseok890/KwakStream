@@ -152,8 +152,10 @@ fun CameraScreen() {
         Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
-        val previewModifier = if (maxWidth.value / maxHeight.value > aspect)
+        val availableWidth = (maxWidth - 68.dp).coerceAtLeast(0.dp)
+        val previewModifier = if (availableWidth.value / maxHeight.value > aspect)
             Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
+        Box(Modifier.fillMaxSize().padding(end = 68.dp), contentAlignment = Alignment.Center) {
         Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
             if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
             Column(
@@ -203,6 +205,7 @@ fun CameraScreen() {
                     }
                 }
             }
+        }
         }
         RightControlPanel(
             modifier = Modifier.align(Alignment.CenterEnd),

@@ -6,8 +6,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.22"
-    CURRENT_PROJECT_VERSION: "23"
+    MARKETING_VERSION: "0.1.23"
+    CURRENT_PROJECT_VERSION: "24"
 targets:
   KwakStream:
     type: application
@@ -18,8 +18,8 @@ targets:
       properties:
         NSCameraUsageDescription: 카메라 미리보기를 표시하려면 카메라 권한이 필요합니다.
         UILaunchScreen: {}
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortraitUpsideDown]
-        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortraitUpsideDown]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeRight]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: live.kwak.stream
