@@ -46,17 +46,15 @@ final class KwakStreamUITests: XCTestCase {
         button.tap()
         let front = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "[전면]"), object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [front], timeout: 5), .completed, "전면 전환 실패: \(status.label)")
-        let frontMenu = app.buttons["넓게 선택됨, 목록"]
-        XCTAssertTrue(frontMenu.waitForExistence(timeout: 5))
-        frontMenu.tap()
-        let normal = app.buttons["일반"]
+        let wide = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "넓게")).firstMatch
+        let normal = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "일반")).firstMatch
+        XCTAssertTrue(wide.waitForExistence(timeout: 5))
         XCTAssertTrue(normal.waitForExistence(timeout: 5))
+        XCTAssertLessThan(wide.frame.midX, normal.frame.midX)
         normal.tap()
-        XCTAssertTrue(app.buttons["일반 선택됨, 목록"].waitForExistence(timeout: 5))
-        app.buttons["일반 선택됨, 목록"].tap()
-        XCTAssertTrue(app.buttons["넓게"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["일반 선택됨"].waitForExistence(timeout: 5))
         app.buttons["넓게"].tap()
-        XCTAssertTrue(app.buttons["넓게 선택됨, 목록"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["넓게 선택됨"].waitForExistence(timeout: 5))
         button.tap()
         let back = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "[후면]"), object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [back], timeout: 5), .completed, "후면 전환 실패: \(status.label)")

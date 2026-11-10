@@ -6,7 +6,7 @@ plugins {
 android {
     namespace = "kr.kwakstream.app"
     compileSdk = 35
-    defaultConfig { applicationId = "live.kwak.stream"; minSdk = 26; targetSdk = 35; versionCode = 33; versionName = "0.1.32" }
+    defaultConfig { applicationId = "live.kwak.stream"; minSdk = 26; targetSdk = 35; versionCode = 34; versionName = "0.1.33" }
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

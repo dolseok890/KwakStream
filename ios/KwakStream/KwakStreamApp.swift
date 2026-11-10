@@ -225,18 +225,17 @@ struct CameraScreen: View {
     @StateObject private var microphone = MicrophoneMeter()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
-    @State private var frontMenuExpanded = false
     @State private var batteryLevel: Float = -1
     @State private var batteryState: UIDevice.BatteryState = .unknown
 
-    private func frontLensIcon(_ symbol: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func frontLensIcon(_ symbol: String, label: String, selected: Bool, enabled: Bool = true, action: @escaping () -> Void) -> some View {
         return Button(action: action) {
             Image(systemName: symbol)
                 .foregroundColor(selected ? .black : .white)
                 .frame(width: 44, height: 44)
                 .background(selected ? Color.white : Color.black.opacity(0.65))
                 .clipShape(Circle())
-        }.buttonStyle(.plain).accessibilityLabel(label)
+        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.35).accessibilityLabel(label + (selected ? " 선택됨" : (!enabled ? " 미지원" : "")))
     }
     private func panelPlaceholder(_ icon: String, _ title: String, size: CGFloat) -> some View {
         VStack(spacing: 0) {
@@ -299,15 +298,9 @@ struct CameraScreen: View {
                             let hasTwo = normal - wide >= 0.05
                             let isWide = hasTwo && abs(model.selectedZoom - wide) < abs(model.selectedZoom - normal)
                             HStack(spacing: 6) {
-                                frontLensIcon(isWide ? "arrow.up.left.and.arrow.down.right" : "viewfinder", label: isWide ? "넓게 선택됨, 목록" : "일반 선택됨, 목록", selected: true) { frontMenuExpanded.toggle() }
-                                if frontMenuExpanded && hasTwo {
-                                    frontLensIcon(isWide ? "viewfinder" : "arrow.up.left.and.arrow.down.right", label: isWide ? "일반" : "넓게", selected: false) {
-                                        model.setZoom(isWide ? normal : wide)
-                                        frontMenuExpanded = false
-                                    }
-                                }
+                                frontLensIcon("arrow.up.left.and.arrow.down.right", label: "넓게", selected: isWide, enabled: hasTwo) { model.setZoom(wide) }
+                                frontLensIcon("viewfinder", label: "일반", selected: !isWide) { model.setZoom(normal) }
                             }
-                            if frontMenuExpanded && !hasTwo { Text("다른 전면 화각을 지원하지 않습니다").font(.caption).foregroundColor(.white) }
                         }
                         HStack(spacing: 8) {
                             if model.cameraSide != "전면" {
@@ -358,7 +351,6 @@ struct CameraScreen: View {
             .background(Color.black)
         }
         .background(Color.black)
-        .onChange(of: model.cameraSide) { _ in frontMenuExpanded = false }
         .onAppear {
             UIDevice.current.isBatteryMonitoringEnabled = true
             batteryLevel = UIDevice.current.batteryLevel

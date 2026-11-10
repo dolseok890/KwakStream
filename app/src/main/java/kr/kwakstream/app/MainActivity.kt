@@ -130,7 +130,6 @@ fun CameraScreen() {
     var engine by remember { mutableStateOf<Camera2Controller?>(null) }
     var zoomStops by remember { mutableStateOf(listOf(1f)) }
     var selectedZoom by remember { mutableFloatStateOf(1f) }
-    var frontMenuExpanded by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (!it) status = "E_PERMISSION: 카메라 권한이 필요합니다"
@@ -188,7 +187,6 @@ fun CameraScreen() {
 
     LaunchedEffect(front, engine) {
         val activeEngine = engine
-        frontMenuExpanded = false
         if (activeEngine != null) {
             camera = null
             zoomStops = listOf(1f)
@@ -258,17 +256,9 @@ fun CameraScreen() {
                         val hasTwo = normal - wide >= 0.05f
                         val isWide = hasTwo && abs(selectedZoom - wide) < abs(selectedZoom - normal)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            FrontLensButton(isWide, true) { frontMenuExpanded = !frontMenuExpanded }
-                            if (frontMenuExpanded && hasTwo) {
-                                FrontLensButton(!isWide, false) {
-                                    val target = if (isWide) normal else wide
-                                    applyZoom(target)
-                                    frontMenuExpanded = false
-                                }
-                            }
+                            FrontLensButton(wide = true, selected = isWide, enabled = hasTwo) { applyZoom(wide) }
+                            FrontLensButton(wide = false, selected = !isWide, enabled = true) { applyZoom(normal) }
                         }
-                        if (frontMenuExpanded && !hasTwo) Text("다른 전면 화각을 지원하지 않습니다", color = Color.White, style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.75f)).padding(4.dp))
                     }
                 }
                 if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
@@ -424,11 +414,13 @@ private fun DashboardTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun FrontLensButton(wide: Boolean, selected: Boolean, onClick: () -> Unit) {
+private fun FrontLensButton(wide: Boolean, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val ink = if (selected) Color.Black else Color.White
-    Button(onClick = onClick, modifier = Modifier.size(48.dp).semantics { contentDescription = if (wide) "넓게" else "일반" },
-        shape = CircleShape, contentPadding = PaddingValues(0.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Color.White else Color.Black.copy(alpha = 0.65f))) {
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp).semantics {
+        contentDescription = (if (wide) "넓게" else "일반") + if (selected) " 선택됨" else if (!enabled) " 미지원" else ""
+    }, shape = CircleShape, contentPadding = PaddingValues(0.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Color.White else Color.Black.copy(alpha = 0.4f),
+            disabledContainerColor = Color.DarkGray.copy(alpha = 0.3f))) {
         Canvas(Modifier.size(24.dp)) {
             val u = size.width / 24f
             // A frame with outward corners for wide; a smaller frame for normal.
