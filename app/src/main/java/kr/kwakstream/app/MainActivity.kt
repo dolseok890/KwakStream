@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -50,6 +52,7 @@ private fun zoomLabel(value: Float): String =
 @Composable
 fun CameraScreen() {
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -143,6 +146,9 @@ fun CameraScreen() {
                 Text(status, color = Color.White, style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.background(Color.Black.copy(alpha = 0.75f))
                         .padding(horizontal = 8.dp, vertical = 4.dp))
+                if (status.startsWith("E_CAMERA")) {
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(status)) }) { Text("오류 복사", color = Color.White) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
                     Button(onClick = { front = !front }, enabled = granted) {

@@ -173,6 +173,12 @@ internal class Camera2Controller(
                     camera.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
                         override fun onConfigured(readySession: CameraCaptureSession) {
                             if (!isCurrent(token)) { readySession.close(); return }
+                            if (device !== camera || previewSurface !== surface || !surface.isValid) {
+                                readySession.close()
+                                reportError(token, "E_CAMERA: 미리보기 Surface가 변경되어 연결할 수 없습니다")
+                                closeCamera()
+                                return
+                            }
                             session = readySession
                             try {
                                 readySession.setRepeatingRequest(builder.build(), null, cameraHandler)
@@ -185,6 +191,9 @@ internal class Camera2Controller(
                         }
                         override fun onConfigureFailed(failed: CameraCaptureSession) {
                             failed.close()
+                            // A previous generation may finish after a newer camera has opened.
+                            // It must never close that newer camera's resources.
+                            if (!isCurrent(token) || device !== camera) return
                             reportError(token, "E_CAMERA: 미리보기 구성 실패")
                             closeCamera()
                         }
@@ -320,7 +329,16 @@ internal class Camera2Controller(
 
     private fun reportError(token: Int, message: String, e: Exception? = null) {
         if (e != null) Log.e("KwakStream", message, e) else Log.e("KwakStream", message)
-        mainHandler.post { if (isCurrent(token)) onStatus(message) }
+        val surface = previewSurface
+        val detail = buildString {
+            append(message)
+            append("\n단계: ")
+            append(e?.stackTrace?.firstOrNull { it.className.contains("KwakStream") || it.className.contains("Camera2Controller") }?.let { "${it.className.substringAfterLast('.')} : ${it.lineNumber}" } ?: "세션 연결")
+            append("\n세대: $token / ${generation.get()}")
+            append(" · Surface: ${surface?.isValid ?: false}")
+            append(" · 세션: ${session != null}")
+        }
+        mainHandler.post { if (isCurrent(token)) onStatus(detail) }
     }
 
     private fun closeCamera() {

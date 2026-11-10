@@ -1,4 +1,5 @@
-# v0.1.17 테스트 결과
-- 통과: CameraX Android 소스 및 Gradle 의존성 검색, TextureView 미지원 배경 호출 제거, 기존 iOS Swift/테스트와 Android Camera2Controller 바이트 비교, 버전·압축 무결성 확인.
-- 확인 불가: 사용자 기기 실제 크래시 원인(스택 트레이스 없음), Android SDK/Termux Studio 빌드 및 실기기 실행.
-- 미실행: iOS GitHub Actions 재실행, iPhone 카메라·回전·전환 실기기, GitHub 업로드.
+# v0.1.18 테스트 결과
+- 통과: CameraX 의존성 미존재, Android Manifest XML 및 iOS YAML 구문, 버전 번호, ZIP 검증, iOS Swift/UI 테스트/워크플로 보존 확인.
+- 미실행: Android Termux Studio 빌드, 실제 카메라 세션 및 iOS 시뮬레이터/실기기 검증.
+- 오류 원인: 스택 트레이스가 없고 Termux logcat이 비어 있어 미확정. 오래된 콜백 경쟁은 코드에서 확인한 위험 경로이며 이번 오류의 원인인지는 미확인.
+- v0.1.17 iOS 시뮬레이터: GitHub Actions 실행 42762323254 성공.
