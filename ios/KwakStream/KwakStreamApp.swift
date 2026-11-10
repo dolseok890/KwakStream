@@ -237,7 +237,7 @@ struct CameraScreen: View {
     }
     private func panelPlaceholder(_ icon: String, _ title: String) -> some View {
         VStack(spacing: 0) {
-            Image(systemName: icon).frame(width: 40, height: 40)
+            Image(systemName: icon).frame(width: 48, height: 48)
                 .background(Color.primary.opacity(0.12)).clipShape(Circle())
             Text(title).font(.caption2)
         }.foregroundColor(.primary.opacity(0.45)).accessibilityLabel("\(title) 준비 중")
@@ -248,7 +248,7 @@ struct CameraScreen: View {
             // than an accessibility container expanded by padding/overlays.
             let landscape = geometry.size.width > geometry.size.height
             let aspect: CGFloat = landscape ? (16.0 / 9.0) : (9.0 / 16.0)
-            let fittedWidth = max(0, min(geometry.size.width - 68, geometry.size.height * aspect))
+            let fittedWidth = max(0, min(geometry.size.width - 80, max(1, geometry.size.height - 116) * aspect))
             let fittedHeight = fittedWidth / aspect
             ZStack {
                 Color.black
@@ -258,6 +258,7 @@ struct CameraScreen: View {
                     #else
                     CameraPreview(session: model.session).accessibilityHidden(true)
                     #endif
+                    PreviewGuides().allowsHitTesting(false).accessibilityHidden(true)
                     Color.clear
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("실제 미리보기 영역")
@@ -265,8 +266,8 @@ struct CameraScreen: View {
                         .accessibilityValue(String(format: "%.2f x %.2f", fittedWidth, fittedHeight))
                 }
                 .frame(width: fittedWidth, height: fittedHeight)
-                .overlay(alignment: .bottom) {
-                    VStack(spacing: 6) {
+                .offset(x: -40)
+                VStack(spacing: 6) {
                         Text(model.status)
                             .font(.caption)
                             .multilineTextAlignment(.center)
@@ -308,32 +309,26 @@ struct CameraScreen: View {
                         .controlSize(.small)
                         .padding(.horizontal, 5)
                     }
-                    .padding(.bottom, 12)
-                }
-                .offset(x: -34)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.trailing, 80)
+                .padding(.bottom, 4)
             }
             .overlay(alignment: .trailing) {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
+                VStack(spacing: 4) {
                     Button { model.switchCamera() } label: {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .frame(width: 40, height: 40)
+                            .frame(width: 48, height: 48)
                             .foregroundColor(.white)
                             .background(Color(red: 25/255, green: 118/255, blue: 210/255))
                             .clipShape(Circle())
                     }.accessibilityIdentifier("switchCamera")
                     Text("카메라").font(.caption2)
-                    Spacer(minLength: 0)
                     panelPlaceholder("mic", "마이크")
-                    Spacer(minLength: 0)
                     panelPlaceholder("circle.fill", "LIVE")
-                    Spacer(minLength: 0)
                     panelPlaceholder("record.circle", "녹화")
-                    Spacer(minLength: 0)
                     panelPlaceholder("square.3.layers.3d", "오버레이")
-                    Spacer(minLength: 0)
                 }
-                .frame(width: 68)
+                .frame(width: 80)
                 .frame(maxHeight: .infinity)
                 .background(colorScheme == .dark ? Color(red: 24/255, green: 26/255, blue: 30/255) : Color(red: 246/255, green: 246/255, blue: 249/255))
             }
@@ -346,6 +341,24 @@ struct CameraScreen: View {
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { phase in
             if phase == .active { model.start() } else { model.stop() }
+        }
+    }
+}
+
+struct PreviewGuides: View {
+    var body: some View {
+        GeometryReader { geo in
+            Path { path in
+                let w = geo.size.width, h = geo.size.height
+                for n in 1...2 {
+                    let x = w * CGFloat(n) / 3, y = h * CGFloat(n) / 3
+                    path.move(to: CGPoint(x: x, y: 0)); path.addLine(to: CGPoint(x: x, y: h))
+                    path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: w, y: y))
+                }
+                path.move(to: CGPoint(x: w/2 - 8, y: h/2)); path.addLine(to: CGPoint(x: w/2 + 8, y: h/2))
+                path.move(to: CGPoint(x: w/2, y: h/2 - 8)); path.addLine(to: CGPoint(x: w/2, y: h/2 + 8))
+                path.addRect(CGRect(x: w*0.05, y: h*0.05, width: w*0.9, height: h*0.9))
+            }.stroke(Color.white.opacity(0.55), lineWidth: 1)
         }
     }
 }

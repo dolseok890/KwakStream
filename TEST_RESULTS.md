@@ -1,3 +1,7 @@
+# v0.1.24
+
+v0.1.24: Android Termux Studio 빌드, Android 실기기, iOS 빌드·시뮬레이터·실기기, 실제 카메라 및 작은 화면 검증: 미실행. 안내선은 미리보기 UI에만 표시.
+
 # v0.1.23
 
 v0.1.23: Android Termux Studio 빌드, Android 실기기, iOS 빌드·시뮬레이터·실기기: 미실행 (환경 제약). 충전 단자 방향 및 실제 미리보기: 미검증.

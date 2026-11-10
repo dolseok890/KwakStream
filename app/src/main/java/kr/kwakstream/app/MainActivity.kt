@@ -20,6 +20,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -152,14 +161,17 @@ fun CameraScreen() {
         Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
-        val availableWidth = (maxWidth - 68.dp).coerceAtLeast(0.dp)
-        val previewModifier = if (availableWidth.value / maxHeight.value > aspect)
-            Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
-        Box(Modifier.fillMaxSize().padding(end = 68.dp), contentAlignment = Alignment.Center) {
-        Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
+        val availableWidth = (maxWidth - 80.dp).coerceAtLeast(0.dp)
+        val availableHeight = (maxHeight - 116.dp).coerceAtLeast(1.dp)
+        val previewWidth = minOf(availableWidth, availableHeight * aspect)
+        val previewHeight = previewWidth / aspect
+        Box(Modifier.fillMaxSize().padding(end = 80.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
             if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            PreviewGuides(Modifier.fillMaxSize())
+        }
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -206,7 +218,6 @@ fun CameraScreen() {
                 }
             }
         }
-        }
         RightControlPanel(
             modifier = Modifier.align(Alignment.CenterEnd),
             enabled = granted,
@@ -218,30 +229,51 @@ fun CameraScreen() {
 @Composable
 private fun RightControlPanel(modifier: Modifier, enabled: Boolean, onSwitchCamera: () -> Unit) {
     Column(
-        modifier = modifier.fillMaxHeight().width(68.dp)
+        modifier = modifier.fillMaxHeight().width(80.dp)
             .background(MaterialTheme.colorScheme.surface).padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceEvenly
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
     ) {
-        ControlButton("↻", "카메라", enabled, onSwitchCamera)
-        ControlButton("♩", "마이크", false) { }
-        ControlButton("●", "LIVE", false) { }
-        ControlButton("●", "녹화", false) { }
-        ControlButton("▧", "오버레이", false) { }
+        ControlButton(Icons.Default.Refresh, "카메라", enabled, onSwitchCamera)
+        ControlButton(Icons.Default.Mic, "마이크", false) { }
+        ControlButton(Icons.Default.PlayArrow, "LIVE", false) { }
+        ControlButton(Icons.Default.RadioButtonChecked, "녹화", false) { }
+        ControlButton(Icons.Default.Layers, "오버레이", false) { }
     }
 }
 
 @Composable
-private fun ControlButton(symbol: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled,
-            modifier = Modifier.size(40.dp).background(
+            modifier = Modifier.size(48.dp).background(
                 if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
             ).semantics { contentDescription = if (enabled) label else "$label (준비 중)" }) {
-            Text(symbol, color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+            Icon(symbol, contentDescription = null, tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
         }
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
+    }
+}
+
+@Composable
+private fun PreviewGuides(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val ink = Color.White.copy(alpha = 0.55f)
+        val thin = 1.dp.toPx()
+        for (step in 1..2) {
+            val x = size.width * step / 3f
+            val y = size.height * step / 3f
+            drawLine(ink, Offset(x, 0f), Offset(x, size.height), thin)
+            drawLine(ink, Offset(0f, y), Offset(size.width, y), thin)
+        }
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val arm = 8.dp.toPx()
+        drawLine(ink, Offset(cx - arm, cy), Offset(cx + arm, cy), thin)
+        drawLine(ink, Offset(cx, cy - arm), Offset(cx, cy + arm), thin)
+        drawRect(ink, topLeft = Offset(size.width * 0.05f, size.height * 0.05f),
+            size = Size(size.width * 0.9f, size.height * 0.9f), style = Stroke(thin))
     }
 }
 
