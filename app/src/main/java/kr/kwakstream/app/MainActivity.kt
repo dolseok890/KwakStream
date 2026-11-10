@@ -160,9 +160,11 @@ fun CameraScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(status, color = Color.White, style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.75f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp))
+                if (status.startsWith("E_")) {
+                    Text(status, color = Color.White, style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.75f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp))
+                }
                 if (status.startsWith("E_CAMERA")) {
                     TextButton(onClick = { clipboard.setText(AnnotatedString(status)) }) { Text("오류 복사", color = Color.White) }
                 }
