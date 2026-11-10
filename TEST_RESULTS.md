@@ -1,3 +1,7 @@
+# v0.1.27
+
+v0.1.27: Android Termux Studio 빌드·Android 실기기 및 iOS 빌드·시뮬레이터·실기기 미실행. 배터리·레이아웃 실측 미검증.
+
 # v0.1.26
 
 v0.1.26: Android Termux Studio 빌드·실기기와 iOS 빌드·시뮬레이터·실기기 미실행 (환경 제한). 화면 크기·카메라 동작 미검증.

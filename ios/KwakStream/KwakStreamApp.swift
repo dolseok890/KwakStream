@@ -225,6 +225,7 @@ struct CameraScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @State private var frontMenuExpanded = false
+    @State private var batteryLevel: Float = -1
 
     private func frontLensIcon(_ symbol: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
         return Button(action: action) {
@@ -238,9 +239,10 @@ struct CameraScreen: View {
     private func panelPlaceholder(_ icon: String, _ title: String, size: CGFloat) -> some View {
         VStack(spacing: 0) {
             Image(systemName: icon).font(.system(size: size * 0.52)).frame(width: size, height: size)
-                .background(Color.primary.opacity(0.12)).clipShape(Circle())
+                .foregroundColor(title == "LIVE" ? .white : .primary.opacity(0.45))
+                .background(title == "LIVE" ? Color(red: 211/255, green: 47/255, blue: 47/255) : Color.primary.opacity(0.12)).clipShape(Circle())
             Text(title).font(.caption2)
-        }.foregroundColor(.primary.opacity(0.45)).accessibilityLabel("\(title) 준비 중")
+        }.accessibilityLabel("\(title) 준비 중")
     }
     var body: some View {
         GeometryReader { geometry in
@@ -248,7 +250,7 @@ struct CameraScreen: View {
             // than an accessibility container expanded by padding/overlays.
             let landscape = geometry.size.width > geometry.size.height
             let aspect: CGFloat = landscape ? (16.0 / 9.0) : (9.0 / 16.0)
-            let fittedWidth = max(0, min(geometry.size.width - 88, max(1, geometry.size.height - 56) * aspect))
+            let fittedWidth = max(0, min(geometry.size.width - 88, max(1, geometry.size.height - 84) * aspect))
             let fittedHeight = fittedWidth / aspect
             let controlSize = max(36, min(56, (geometry.size.height - 114) / 5))
             ZStack {
@@ -267,7 +269,16 @@ struct CameraScreen: View {
                         .accessibilityValue(String(format: "%.2f x %.2f", fittedWidth, fittedHeight))
                 }
                 .frame(width: fittedWidth, height: fittedHeight)
-                .offset(x: -44, y: -28)
+                .offset(x: -44, y: -14)
+                HStack {
+                    Text("대기 · \(model.cameraSide)")
+                    Spacer()
+                    Text(batteryLevel >= 0 ? "배터리 \(Int(batteryLevel * 100))%" : "배터리 —")
+                }
+                .font(.caption2).foregroundColor(.white).padding(.horizontal, 12)
+                .frame(height: 28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.trailing, 88)
                 VStack(spacing: 6) {
                         Text(model.status)
                             .font(.caption)
@@ -339,7 +350,14 @@ struct CameraScreen: View {
         }
         .background(Color.black)
         .onChange(of: model.cameraSide) { _ in frontMenuExpanded = false }
-        .onAppear { model.start() }
+        .onAppear {
+            UIDevice.current.isBatteryMonitoringEnabled = true
+            batteryLevel = UIDevice.current.batteryLevel
+            model.start()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
+            batteryLevel = UIDevice.current.batteryLevel
+        }
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { phase in
             if phase == .active { model.start() } else { model.stop() }

@@ -2,6 +2,10 @@ package kr.kwakstream.app
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.BroadcastReceiver
+import android.os.BatteryManager
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -73,6 +77,18 @@ fun CameraScreen() {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     var front by remember { mutableStateOf(false) }
+    var batteryPercent by remember { mutableStateOf<Int?>(null) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                batteryPercent = if (level >= 0 && scale > 0) (level * 100 / scale).coerceIn(0, 100) else null
+            }
+        }
+        context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        onDispose { context.unregisterReceiver(receiver) }
+    }
     var status by remember { mutableStateOf("카메라 준비 중") }
     var camera by remember { mutableStateOf<Camera2Controller?>(null) }
     var engine by remember { mutableStateOf<Camera2Controller?>(null) }
@@ -162,16 +178,21 @@ fun CameraScreen() {
         contentAlignment = Alignment.Center
     ) {
         val availableWidth = (maxWidth - 88.dp).coerceAtLeast(0.dp)
-        val availableHeight = (maxHeight - 56.dp).coerceAtLeast(1.dp)
+        val availableHeight = (maxHeight - 84.dp).coerceAtLeast(1.dp)
         val previewWidth = minOf(availableWidth, availableHeight * aspect)
         val previewHeight = previewWidth / aspect
         Box(Modifier.fillMaxSize().padding(end = 88.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().padding(bottom = 56.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().padding(top = 28.dp, bottom = 56.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
                 if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                 PreviewGuides(Modifier.fillMaxSize())
             }
         }
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(28.dp).padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("대기 · ${if (front) "전면" else "후면"}", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                Text(batteryPercent?.let { "배터리 $it%" } ?: "배터리 —", color = Color.White, style = MaterialTheme.typography.labelSmall)
+            }
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -249,10 +270,10 @@ private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled,
             modifier = Modifier.size(size).background(
-                if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
+                if (label == "LIVE") Color(0xFFD32F2F) else if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
             ).semantics { contentDescription = if (enabled) label else "$label (준비 중)" }) {
             Icon(symbol, contentDescription = null, modifier = Modifier.size(size * 0.52f),
-                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+                tint = if (enabled || label == "LIVE") Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
         }
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
