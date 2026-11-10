@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.contentDescription
@@ -87,6 +88,26 @@ fun CameraScreen() {
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    var micGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) }
+    var micError by remember { mutableStateOf(false) }
+    var micLevels by remember { mutableStateOf<List<Float>>(emptyList()) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
+        micGranted = allowed
+        micError = !allowed
+    }
+    val meter = remember { MicrophoneMeter(onLevels = { micLevels = it }, onError = { micError = true }) }
+    DisposableEffect(micGranted, owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> if (micGranted) meter.start()
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> meter.stop()
+                else -> Unit
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        if (micGranted && owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) meter.start()
+        onDispose { owner.lifecycle.removeObserver(observer); meter.stop() }
     }
     var front by remember { mutableStateOf(false) }
     var batteryPercent by remember { mutableStateOf<Int?>(null) }
@@ -208,6 +229,9 @@ fun CameraScreen() {
                 Text("대기 · ${if (front) "전면" else "후면"}", color = Color.White, style = MaterialTheme.typography.labelSmall)
                 BatteryIndicator(batteryPercent, batteryCharging)
             }
+            AudioMeter(levels = micLevels, granted = micGranted, error = micError,
+                onRequest = { if (!micGranted) micPermission.launch(Manifest.permission.RECORD_AUDIO) },
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 5.dp))
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -292,6 +316,37 @@ private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, 
         }
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
+    }
+}
+
+@Composable
+private fun AudioMeter(levels: List<Float>, granted: Boolean, error: Boolean, onRequest: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.width(135.dp).clickable(enabled = !granted, onClick = onRequest), verticalArrangement = Arrangement.Center) {
+        if (!granted || error) {
+            Text(if (error) "마이크 사용 불가" else "마이크 허용", color = Color.White, style = MaterialTheme.typography.labelSmall)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Mic, contentDescription = "마이크 레벨", tint = Color.White, modifier = Modifier.size(16.dp))
+                Column(Modifier.padding(start = 3.dp)) {
+                    val values = if (levels.isEmpty()) listOf(-60f) else levels
+                    values.take(2).forEachIndexed { i, db ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (values.size == 1) "M" else if (i == 0) "L" else "R", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                            Canvas(Modifier.padding(start = 2.dp).width(96.dp).height(6.dp)) {
+                                val segments = 20
+                                val step = size.width / segments
+                                for (index in 0 until segments) {
+                                    val threshold = -60f + 60f * (index + 1) / segments
+                                    val color = when { index >= 19 -> Color(0xFFD32F2F); threshold > -12f -> Color(0xFFFBC02D); else -> Color(0xFF388E3C) }
+                                    drawRect(if (db >= threshold) color else Color.DarkGray, topLeft = Offset(index * step, 0f), size = Size((step - 1.dp.toPx()).coerceAtLeast(0f), size.height))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Text("      -24           -12        0 dBFS", color = Color.LightGray, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
     }
 }
 

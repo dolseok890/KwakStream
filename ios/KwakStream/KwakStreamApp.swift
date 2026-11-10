@@ -222,6 +222,7 @@ final class CameraModel: ObservableObject {
 
 struct CameraScreen: View {
     @StateObject private var model = CameraModel()
+    @StateObject private var microphone = MicrophoneMeter()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @State private var frontMenuExpanded = false
@@ -280,6 +281,9 @@ struct CameraScreen: View {
                 .frame(height: 28)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.trailing, 88)
+                AudioMeterView(meter: microphone)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .padding(.leading, 8).padding(.bottom, 5).padding(.trailing, 88)
                 VStack(spacing: 6) {
                         Text(model.status)
                             .font(.caption)
@@ -356,6 +360,7 @@ struct CameraScreen: View {
             batteryLevel = UIDevice.current.batteryLevel
             batteryState = UIDevice.current.batteryState
             model.start()
+            microphone.startIfAuthorized()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
             batteryLevel = UIDevice.current.batteryLevel
@@ -363,10 +368,42 @@ struct CameraScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in
             batteryState = UIDevice.current.batteryState
         }
-        .onDisappear { model.stop() }
+        .onDisappear { model.stop(); microphone.stop() }
         .onChange(of: scenePhase) { phase in
-            if phase == .active { model.start() } else { model.stop() }
+            if phase == .active { model.start(); microphone.startIfAuthorized() }
+            else { model.stop(); microphone.stop() }
         }
+    }
+}
+
+struct AudioMeterView: View {
+    @ObservedObject var meter: MicrophoneMeter
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if !meter.message.isEmpty {
+                Button(meter.message) { meter.requestAndStart() }.font(.caption2).foregroundColor(.white)
+            } else {
+                HStack(spacing: 3) {
+                    Image(systemName: "mic").foregroundColor(.white)
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array((meter.levels.isEmpty ? [-60.0] : meter.levels).prefix(2).enumerated()), id: \.offset) { item in
+                            HStack(spacing: 2) {
+                                Text(meter.levels.count < 2 ? "M" : (item.offset == 0 ? "L" : "R")).foregroundColor(.white)
+                                HStack(spacing: 1) {
+                                    ForEach(0..<20, id: \.self) { i in
+                                        let threshold = -60.0 + 60.0 * Float(i + 1) / 20.0
+                                        let color: Color = i >= 19 ? .red : (threshold > -12 ? .yellow : .green)
+                                        Rectangle().fill(item.element >= threshold ? color : Color.gray.opacity(0.5)).frame(width: 4, height: 6)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Text("−24          −12        0 dBFS").foregroundColor(.gray)
+            }
+        }.font(.system(size: 9)).frame(width: 135, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 }
 

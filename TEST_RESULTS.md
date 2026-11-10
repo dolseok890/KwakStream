@@ -1,3 +1,7 @@
+# v0.1.31
+
+v0.1.31: Android Termux Studio 빌드·Android 실기기 및 iOS 빌드·시뮬레이터·실기기 미실행. 마이크 신호·권한·수명주기 미검증.
+
 # v0.1.30
 
 v0.1.30: Android Termux Studio 빌드·실기기, 초점 비교, iOS 빌드·시뮬레이터 미실행. 기기 기본값이 연속 동영상 AF일 가능성 있음.
