@@ -1,3 +1,7 @@
+# v0.1.29
+
+v0.1.29: Android Termux Studio 빌드 및 실기기, iOS GitHub Actions 빌드·시뮬레이터 미실행. 시스템 바 스와이프, 권한창, 폴더블 동작 미검증.
+
 # v0.1.28
 
 v0.1.28: Android Termux Studio 빌드·실기기, iOS 빌드·시뮬레이터·실기기 미실행. 실제 충전 전환 및 잔량 변경 미검증.
