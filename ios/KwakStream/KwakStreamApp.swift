@@ -216,6 +216,16 @@ struct CameraScreen: View {
     @StateObject private var model = CameraModel()
     @Environment(\.scenePhase) private var scenePhase
 
+    private func frontLensIcon(_ symbol: String, label: String, value: Double) -> some View {
+        let selected = abs(model.selectedZoom - value) < 0.01
+        return Button { model.setZoom(value) } label: {
+            Image(systemName: symbol)
+                .foregroundColor(selected ? .black : .white)
+                .frame(width: 44, height: 44)
+                .background(selected ? Color.white : Color.black.opacity(0.65))
+                .clipShape(Circle())
+        }.buttonStyle(.plain).accessibilityLabel(label)
+    }
     var body: some View {
         GeometryReader { geometry in
             // Explicit, measured rectangle: the UI test reads THIS element rather
@@ -251,10 +261,19 @@ struct CameraScreen: View {
                         HStack(spacing: 8) {
                             Button("카메라 전환: [\(model.cameraSide)]") { model.switchCamera() }
                                 .accessibilityIdentifier("switchCamera")
-                            ForEach(model.zoomFactors, id: \.self) { zoom in
-                                Button(CameraModel.zoomText(zoom)) { model.setZoom(zoom) }
+                            if model.cameraSide != "전면" {
+                                ForEach(model.zoomFactors, id: \.self) { zoom in
+                                    Button { model.setZoom(zoom) } label: {
+                                        let selected = abs(model.selectedZoom - zoom) < 0.01
+                                        Text(CameraModel.zoomText(zoom).replacingOccurrences(of: "×", with: ""))
+                                            .foregroundColor(selected ? .black : .white)
+                                            .frame(width: 44, height: 44)
+                                            .background(selected ? Color.white : Color.black.opacity(0.65))
+                                            .clipShape(Circle())
+                                    }
+                                    .buttonStyle(.plain)
                                     .accessibilityIdentifier("zoom_\(zoom)")
-                                    .disabled(model.selectedZoom == zoom)
+                                }
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -262,6 +281,18 @@ struct CameraScreen: View {
                         .padding(.horizontal, 5)
                     }
                     .padding(.bottom, 12)
+                }
+                .overlay(alignment: .topLeading) {
+                    if model.cameraSide == "전면" {
+                        HStack(spacing: 6) {
+                            if let normal = model.zoomFactors.first(where: { abs($0 - 1) < 0.01 }) {
+                                frontLensIcon("person.fill", label: "일반", value: normal)
+                            }
+                            if let wide = model.zoomFactors.filter({ $0 < 0.99 }).min() {
+                                frontLensIcon("person.2.fill", label: "넓게", value: wide)
+                            }
+                        }.padding(12)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

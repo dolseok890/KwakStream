@@ -10,6 +10,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -46,8 +51,8 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun zoomLabel(value: Float): String =
-    if (abs(value - round(value)) < 0.01f) "${round(value).toInt()}×"
-    else String.format(Locale.US, "%.1f×", value)
+    if (abs(value - round(value)) < 0.01f) "${round(value).toInt()}"
+    else String.format(Locale.US, "%.1f", value)
 
 @Composable
 fun CameraScreen() {
@@ -128,6 +133,16 @@ fun CameraScreen() {
         }
     }
 
+    fun applyZoom(factor: Float) {
+        val current = camera
+        if (current == null) { status = "E_ZOOM: 카메라 준비 중"; return }
+        try {
+            current.setZoomRatio(factor) { succeeded, error ->
+                if (succeeded) { selectedZoom = factor; status = "${if (front) "전면" else "후면"} · API 줌 ${zoomLabel(factor)}" }
+                else status = "E_ZOOM: ${error ?: "적용 실패"}"
+            }
+        } catch (e: Exception) { status = "E_ZOOM: ${e.localizedMessage ?: "줌 범위 오류"}"; Log.e("KwakStream", "[E_ZOOM]", e) }
+    }
     val configuration = LocalConfiguration.current
     val aspect = if (configuration.screenWidthDp > configuration.screenHeightDp) 16f / 9f else 9f / 16f
     BoxWithConstraints(
@@ -138,6 +153,14 @@ fun CameraScreen() {
             Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
         Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
             if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            if (front && granted && camera != null) {
+                Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val normal = zoomStops.firstOrNull { abs(it - 1f) < 0.01f }
+                    val wide = zoomStops.filter { it < 0.99f }.minOrNull()
+                    if (normal != null) FrontLensButton(false, abs(selectedZoom - normal) < 0.01f) { applyZoom(normal) }
+                    if (wide != null) FrontLensButton(true, abs(selectedZoom - wide) < 0.01f) { applyZoom(wide) }
+                }
+            }
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -155,32 +178,35 @@ fun CameraScreen() {
                         Text("카메라 전환: [${if (front) "전면" else "후면"}]")
                     }
                 }
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    zoomStops.forEach { factor ->
-                        Button(onClick = {
-                            val current = camera
-                            if (current == null) { status = "E_ZOOM: 카메라 준비 중" }
-                            else {
-                                try {
-                                    current.setZoomRatio(factor) { succeeded, error ->
-                                        if (succeeded) {
-                                            selectedZoom = factor
-                                            status = "${if (front) "전면" else "후면"} · API 줌 ${zoomLabel(factor)}"
-                                        } else {
-                                            status = "E_ZOOM: ${error ?: "적용 실패"}"
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    status = "E_ZOOM: ${e.localizedMessage ?: "줌 범위 오류"}"
-                                    Log.e("KwakStream", "[E_ZOOM]", e)
-                                }
+                if (!front) {
+                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        zoomStops.forEach { factor ->
+                            val selected = abs(selectedZoom - factor) < 0.01f
+                            Button(onClick = { applyZoom(factor) }, enabled = granted && camera != null,
+                                modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (selected) Color.White else Color.Black.copy(alpha = 0.65f), contentColor = if (selected) Color.Black else Color.White)) {
+                                Text(zoomLabel(factor))
                             }
-                        }, enabled = granted && camera != null && abs(selectedZoom - factor) > 0.01f) {
-                            Text(zoomLabel(factor))
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FrontLensButton(wide: Boolean, selected: Boolean, onClick: () -> Unit) {
+    val ink = if (selected) Color.Black else Color.White
+    Button(onClick = onClick, modifier = Modifier.size(48.dp).semantics { contentDescription = if (wide) "넓게" else "일반" },
+        shape = CircleShape, contentPadding = PaddingValues(0.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Color.White else Color.Black.copy(alpha = 0.65f))) {
+        Canvas(Modifier.size(24.dp)) {
+            val u = size.width / 24f
+            val xs = if (wide) listOf(8f, 16f) else listOf(12f)
+            xs.forEach { x ->
+                drawCircle(ink, radius = 2.5f * u, center = Offset(x * u, 7f * u))
+                drawLine(ink, Offset((x - 3f) * u, 17f * u), Offset((x + 3f) * u, 17f * u), strokeWidth = 3f * u)
             }
         }
     }
