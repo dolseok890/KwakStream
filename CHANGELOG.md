@@ -91,3 +91,8 @@ v0.1.22: 기존 카메라 전환을 오른쪽 패널로 이동. 요청 색상 �
 - Camera2Controller.kt `selectPreviewSize` 파라미터를 `Array<out Size>`로 변경해 Camera2의 output size 배열을 받도록 함.
 - `CONTROL_AF_AVAILABLE_MODES`의 nullable `IntArray`에 `orEmpty()` 대신 `?: intArrayOf()` 사용.
 - v0.1.15 코드를 기준으로 해당 2개 컴파일 오류와 배포 버전만 변경. UI, 회전 처리, 줌, iOS AVFoundation 변경 없음.
+
+## v0.1.34
+- 수동 가로/세로 전환 버튼을 렌즈 버튼 옆에 추가.
+- 오디오 미터 막대 너비 확대.
+- LIVE 및 녹화는 기존처럼 미구현 상태이며 방향 잠금은 연결 후 추가 검증 필요.

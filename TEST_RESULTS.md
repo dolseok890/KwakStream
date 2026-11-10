@@ -50,3 +50,8 @@ v0.1.22: Android Termux Studio 빌드, Android 실기기, iOS 빌드 및 시뮬�
 - 미실행: Android/iOS 빌드, 기기 카메라, 권한 및 오류 표시 테스트.
 - 기존의 간헐적인 Camera2 Surface 오류는 해결되지 않았고 원인 미확정.
 - 통과: 오류 표시 조건 정적 검사, Camera2 제어 코드 및 iOS Swift/테스트/CI 파일 원본 비교, XML/YAML, ZIP 무결성.
+
+## v0.1.34
+- Android 빌드: 미실행 (Android SDK/Gradle 환경 없음).
+- 실제 기기 화면, 카메라 방향, 오디오 미터: 미실행.
+- LIVE/녹화 중 방향 잠금: 확인 불가 (기존 기능 미구현).
