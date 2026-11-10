@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -78,12 +79,15 @@ fun CameraScreen() {
     }
     var front by remember { mutableStateOf(false) }
     var batteryPercent by remember { mutableStateOf<Int?>(null) }
+    var batteryCharging by remember { mutableStateOf(false) }
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
                 val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
                 batteryPercent = if (level >= 0 && scale > 0) (level * 100 / scale).coerceIn(0, 100) else null
+                val state = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                batteryCharging = state == BatteryManager.BATTERY_STATUS_CHARGING || state == BatteryManager.BATTERY_STATUS_FULL
             }
         }
         context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -191,7 +195,7 @@ fun CameraScreen() {
             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(28.dp).padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("대기 · ${if (front) "전면" else "후면"}", color = Color.White, style = MaterialTheme.typography.labelSmall)
-                Text(batteryPercent?.let { "배터리 $it%" } ?: "배터리 —", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                BatteryIndicator(batteryPercent, batteryCharging)
             }
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
@@ -277,6 +281,34 @@ private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, 
         }
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
+    }
+}
+
+@Composable
+private fun BatteryIndicator(percent: Int?, charging: Boolean) {
+    val ink = when {
+        percent == null -> Color.White
+        percent <= 10 -> Color(0xFFD32F2F)
+        percent <= 20 -> Color(0xFFFBC02D)
+        else -> Color.White
+    }
+    val accessibility = if (percent == null) "배터리 잔량 확인 불가" else
+        "배터리 $percent%" + if (charging) ", 충전 중" else ""
+    Box(Modifier.width(56.dp).height(24.dp).semantics { contentDescription = accessibility }, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 1.5.dp.toPx()
+            val bodyWidth = size.width - 4.dp.toPx()
+            drawRoundRect(Color.White, size = Size(bodyWidth, size.height),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()), style = Stroke(stroke))
+            drawRect(Color.White, topLeft = Offset(bodyWidth, size.height * 0.32f),
+                size = Size(3.dp.toPx(), size.height * 0.36f))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(end = 4.dp)) {
+            if (charging) Icon(Icons.Default.FlashOn, contentDescription = null,
+                modifier = Modifier.size(13.dp), tint = Color(0xFF388E3C))
+            Text(percent?.toString() ?: "—", color = ink, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
     }
 }
 

@@ -226,6 +226,7 @@ struct CameraScreen: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var frontMenuExpanded = false
     @State private var batteryLevel: Float = -1
+    @State private var batteryState: UIDevice.BatteryState = .unknown
 
     private func frontLensIcon(_ symbol: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
         return Button(action: action) {
@@ -273,7 +274,7 @@ struct CameraScreen: View {
                 HStack {
                     Text("대기 · \(model.cameraSide)")
                     Spacer()
-                    Text(batteryLevel >= 0 ? "배터리 \(Int(batteryLevel * 100))%" : "배터리 —")
+                    BatteryIndicator(level: batteryLevel, state: batteryState)
                 }
                 .font(.caption2).foregroundColor(.white).padding(.horizontal, 12)
                 .frame(height: 28)
@@ -353,15 +354,44 @@ struct CameraScreen: View {
         .onAppear {
             UIDevice.current.isBatteryMonitoringEnabled = true
             batteryLevel = UIDevice.current.batteryLevel
+            batteryState = UIDevice.current.batteryState
             model.start()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
             batteryLevel = UIDevice.current.batteryLevel
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in
+            batteryState = UIDevice.current.batteryState
+        }
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { phase in
             if phase == .active { model.start() } else { model.stop() }
         }
+    }
+}
+
+struct BatteryIndicator: View {
+    let level: Float
+    let state: UIDevice.BatteryState
+    private var percent: Int? { level >= 0 ? min(100, max(0, Int((level * 100).rounded()))) : nil }
+    private var charging: Bool { state == .charging || state == .full }
+    private var ink: Color {
+        guard let percent = percent else { return .white }
+        if percent <= 10 { return Color(red: 211/255, green: 47/255, blue: 47/255) }
+        if percent <= 20 { return Color(red: 251/255, green: 192/255, blue: 45/255) }
+        return .white
+    }
+    var body: some View {
+        HStack(spacing: 1) {
+            if charging { Image(systemName: "bolt.fill").foregroundColor(Color(red: 56/255, green: 142/255, blue: 60/255)).font(.system(size: 10)) }
+            Text(percent.map(String.init) ?? "—").foregroundColor(ink).font(.system(size: 11, weight: .medium))
+        }
+        .frame(width: 48, height: 22)
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white, lineWidth: 1.5))
+        .overlay(alignment: .trailing) { Rectangle().fill(Color.white).frame(width: 3, height: 8).offset(x: 3) }
+        .padding(.trailing, 3)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(percent.map { "배터리 \($0)%" + (charging ? ", 충전 중" : "") } ?? "배터리 잔량 확인 불가")
     }
 }
 
