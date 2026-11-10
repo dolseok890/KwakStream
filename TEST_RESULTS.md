@@ -1,3 +1,7 @@
+# v0.1.30
+
+v0.1.30: Android Termux Studio 빌드·실기기, 초점 비교, iOS 빌드·시뮬레이터 미실행. 기기 기본값이 연속 동영상 AF일 가능성 있음.
+
 # v0.1.29
 
 v0.1.29: Android Termux Studio 빌드 및 실기기, iOS GitHub Actions 빌드·시뮬레이터 미실행. 시스템 바 스와이프, 권한창, 폴더블 동작 미검증.
