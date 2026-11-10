@@ -1,36 +1,12 @@
-## v0.1.14 — Android Compose import 누락 컴파일 오류 수정
-- `MainActivity.kt:150`의 `Unresolved reference: horizontalScroll`, `Unresolved reference: rememberScrollState` 수정.
-- `androidx.compose.foundation.horizontalScroll` 및 `androidx.compose.foundation.rememberScrollState` 명시적 import 추가. 줌 버튼 가로 스크롤 동작 유지.
-- 기존 Android Camera2 엔진, 렌즈/줌, 전·후면 전환, 센서 회전·FIT_CENTER, iOS AVFoundation/시뮬레이터 및 아이콘 보존.
-- Android 0.1.14 (versionCode 15), iOS 0.1.14 (build 15). 앱 ID `live.kwak.stream` 유지.
-- 실측: 소스 정적 검사 38/38, Kotlin 미리보기 크기 컴파일 및 5개 케이스, 회전·FIT_CENTER 단위 테스트 통과.
-- Android Gradle 전체 빌드와 실기기/시뮬레이터 테스트는 미실행. 이전 Gradle 로그의 import 오류를 정적 검증으로 수정한 상태.
-- GitHub 커밋 및 태그 미등록. ZIP 이름은 기존 `KwakStream.zip` 유지.
+# 변경 이력
 
+## v0.1.7 — GitHub 릴리스 모델 변경
+- 버전별 GitHub 폴더 대신 루트에 최신 소스를 커밋하고 변경 불가능한 Git 주석 태그로 보존.
+- `scripts/publish-version.sh`: 아카이브 검사, 기존 태그 검사, 안전한 레거시 폴더 정리, 루트 소스 동기화, 원격 브랜치+태그 push.
+- `ios-simulator.yml`: 태그가 가리키는 루트 iOS 프로젝트만 사용하고 태그/버전 일치 검사.
+- 기존 Android/iOS 코드와 B안 아이콘은 보존. Android versionCode 8 / iOS build 8, versionName 0.1.7.
+- Google Drive의 앱별 버전 폴더 정책은 유지.
 
----
-
-## v0.1.13 — 카메라 ID와 줌 UI 중복 노출 정리
-- Android 사용자 화면에서 `후면 ID 0 / 전면 ID 1` 등의 원시 CameraManager ID 버튼 제거.
-- 카메라 ID는 CameraManager에서 계속 조회하고 내부 전·후면 전환 및 Logcat 진단에는 유지.
-- 화면에는 전·후면 전환 버튼과 API 기반 줌 범위(최소 / 1배 / 최대)만 표시. 물리 렌즈의 실제 전환점으로 오인하지 않도록 `줌`으로 표기.
-- 프레임 콜백 수신만으로 검은 화면까지 정상이라고 판정하지 않도록 CAM_OK·미리보기 정상 문구를 CAM_FRAME·프레임 수신으로 변경.
-- 카메라 회전/FIT_CENTER는 이전 v0.1.12 로직을 그대로 유지. 검은 화면 여부는 실기기 로그·영상 검증 필요.
-- iOS AVFoundation 및 시뮬레이터 코드는 변경하지 않음.
-- Android 0.1.13 (versionCode 14), iOS 0.1.13 (build 14).
-- APK 전체 빌드 / 실제 단말 / iOS 시뮬레이터 테스트는 미실행.
-
-# CHANGELOG
-
-## v0.1.12 — Camera2 세로 미리보기 90° 회전 문제 수정
-- Android `TextureView`가 `SENSOR_ORIENTATION`을 자체 처리하는데 다시 회전하던 중복 변환 제거.
-- `TextureView` 변환에는 `Display.rotation` 역회전만 적용하고, 실제 센서 방향은 원본 프레임 비율 산정에만 사용.
-- 카메라 실제 출력 해상도/방향별 FIT_CENTER (확대/크롭/왜곡 없음) 및 변환 시점 보강.
-- 카메라 프레임 첫 수신 후, 버퍼 크기 설정 후 변환 재적용.
-- 폴더블 화면·방향 변경 시 카메라 센서 방향 메타데이터 다시 조회.
-- 앱 화면에 `센서/화면/미리보기 보정` 방향 진단 정보 표시, Android 로그 `PREVIEW_APPLIED` 기록.
-- 전면/후면 Camera2, 권한·재시도·줌, 기존 아이콘·패키지명 보존.
-- iPhone AVFoundation/시뮬레이터 가상 카메라는 코드 변경 없음.
-- 버전: Android 0.1.12 (code 13), iOS 0.1.12 (build 13).
-- 미구현: MP4 녹화 (변경 범위 아님), RTMP/Cloudflare 연동 (보류).
-- **중요:** 수정 코드 정적/단위 테스트 통과 ≠ 실기기 수직 미리보기 확인. Termux 전체 APK 빌드 및 전·후면 실화면 검증 필요.
+## v0.1.6 — 카메라 오류 및 API 줌
+- 이전 버전에서 도입한 iPhone 시뮬레이터 가상 카메라 전환 및 테스트 프레임 유지.
+- iOS 오류 코드, 실기기 AVFoundation 줌 후보, Android Camera2 줌 후보 유지.

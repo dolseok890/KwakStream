@@ -1,25 +1,24 @@
 package kr.kwakstream.app
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.SurfaceTexture
-import android.hardware.camera2.CameraCharacteristics
 import android.os.Bundle
-import android.view.TextureView
-import android.view.Surface
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -29,133 +28,150 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import android.view.TextureView
+import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.round
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.navigationBars())
-        }
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.navigationBars())
         setContent { CameraScreen() }
     }
 }
 
+private fun zoomLabel(value: Float): String =
+    if (abs(value - round(value)) < 0.01f) "${round(value).toInt()}×"
+    else String.format(Locale.US, "%.1f×", value)
+
 @Composable
 fun CameraScreen() {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val controller = remember(context) { Camera2Controller(context.applicationContext) }
-    var state by remember { mutableStateOf(Camera2UiState()) }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    var front by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("카메라 준비 중") }
+    var camera by remember { mutableStateOf<Camera2Controller?>(null) }
+    var engine by remember { mutableStateOf<Camera2Controller?>(null) }
+    var zoomStops by remember { mutableStateOf(listOf(1f)) }
+    var selectedZoom by remember { mutableFloatStateOf(1f) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
-        if (!it) state = state.copy(status = "E_PERMISSION: 카메라 권한이 필요합니다", error = true)
+        if (!it) status = "E_PERMISSION: 카메라 권한이 필요합니다"
     }
+    LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
     val previewView = remember(context) {
-        val view = TextureView(context)
-        view.isOpaque = false // show parent black where the FIT_CENTER frame doesn't fill.
-        view.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                var previousDisplayRotation = Surface.ROTATION_0
-                fun syncRotation() {
-                    val rotation = view.display?.rotation ?: Surface.ROTATION_0
-                    if (previousDisplayRotation != rotation) {
-                        previousDisplayRotation = rotation
-                        controller.onDisplayRotationChanged(rotation)
+        TextureView(context).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+    }
+
+    DisposableEffect(granted, owner) {
+        var disposed = false
+        var current: Camera2Controller? = null
+        camera = null
+        engine = null
+        zoomStops = listOf(1f)
+        selectedZoom = 1f
+        if (granted) {
+            val controller = Camera2Controller(context, previewView, front,
+                onReady = { stops ->
+                    if (!disposed) {
+                        camera = current
+                        zoomStops = stops
+                        status = "${if (front) "전면" else "후면"} 카메라 · API 렌즈 배율 ${stops.size}개"
+                        Log.i("KwakStream", "[CAM_OK] front=$front lens stops=$stops")
+                    }
+                },
+                onStatus = { message -> if (!disposed) status = message })
+            current = controller
+            engine = controller
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> controller.resume()
+                    Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> controller.pause()
+                    else -> Unit
+                }
+            }
+            owner.lifecycle.addObserver(observer)
+            if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                controller.resume()
+            }
+            onDispose {
+                disposed = true
+                owner.lifecycle.removeObserver(observer)
+                controller.release()
+                engine = null
+                camera = null
+            }
+        } else {
+            onDispose {
+                disposed = true
+                camera = null
+            }
+        }
+    }
+
+    LaunchedEffect(front, engine) {
+        val activeEngine = engine
+        if (activeEngine != null) {
+            camera = null
+            zoomStops = listOf(1f)
+            selectedZoom = 1f
+            activeEngine.switchFacing(front)
+        }
+    }
+
+    val configuration = LocalConfiguration.current
+    val aspect = if (configuration.screenWidthDp > configuration.screenHeightDp) 16f / 9f else 9f / 16f
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        val previewModifier = if (maxWidth.value / maxHeight.value > aspect)
+            Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
+        Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
+            if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(status, color = Color.White, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.75f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
+                    Button(onClick = { front = !front }, enabled = granted) {
+                        Text("카메라 전환: [${if (front) "전면" else "후면"}]")
                     }
                 }
-                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-                    syncRotation()
-                    controller.setTexture(view, surface, width, height)
-                }
-                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
-                    syncRotation()
-                    controller.setTexture(view, surface, width, height)
-                }
-                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                    controller.setTexture(view, null, 0, 0)
-                    return true
-                }
-                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-                    syncRotation() // detects 180-degree device turns without a size change.
-                    controller.onPreviewFrame()
-                }
-            }
-        view
-    }
-    LaunchedEffect(Unit) { if (!granted) permissionLauncher.launch(Manifest.permission.CAMERA) }
-    DisposableEffect(controller, lifecycleOwner) {
-        controller.onState = { state = it }
-        val lifecycle = lifecycleOwner.lifecycle
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    val nowGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-                    granted = nowGranted
-                    controller.setPermission(nowGranted)
-                    controller.setActive(true)
-                }
-                Lifecycle.Event.ON_PAUSE -> controller.setActive(false)
-                else -> Unit
-            }
-        }
-        lifecycle.addObserver(observer)
-        controller.setPermission(granted)
-        controller.setActive(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
-        if (previewView.isAvailable) {
-            controller.setTexture(previewView, previewView.surfaceTexture, previewView.width, previewView.height)
-        }
-        onDispose {
-            lifecycle.removeObserver(observer)
-            controller.onState = null
-            controller.release()
-        }
-    }
-    // Never force a 9:16 / 16:9 viewport on a camera that exposes 4:3 or
-    // another native output shape. The camera transform fits its real frame.
-    Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
-        contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-            if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            Column(Modifier.align(Alignment.BottomCenter).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(state.status, color = if (state.error) Color(0xFFFFB4AB) else Color.White,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.78f)).padding(7.dp))
-                if (state.previewInfo.isNotBlank()) Text(
-                    state.previewInfo, color = Color.LightGray,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.65f)).padding(4.dp)
-                )
-                if (!granted) Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
-                else if (state.error) OutlinedButton(onClick = { controller.retry() }) { Text("카메라 재시도") }
-                val selected = state.cameras.find { it.id == state.selectedId }
-                val otherFacing = if (selected?.facing == CameraCharacteristics.LENS_FACING_FRONT)
-                    CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
-                Button(onClick = { controller.switchFacing() },
-                    enabled = granted && state.cameras.any { it.facing == otherFacing }) {
-                    Text("카메라 전환: [${if (selected?.facing == CameraCharacteristics.LENS_FACING_FRONT) "전면" else "후면"}]")
-                }
-                // The CameraManager IDs are diagnostic metadata, not selectable lens
-                // magnifications. Keep actual IDs in the Camera2 logs but DO NOT
-                // render a second, misleading row of lens buttons in the UI.
-                // Show exactly one zoom control derived from Camera2's zoom range.
-                // These are supported zoom ratios, not guaranteed physical lenses.
-                if (state.zoomStops.isNotEmpty()) {
-                    Text("줌 (기기 API 지원 범위)",
-                        color = Color.LightGray,
-                        style = MaterialTheme.typography.labelSmall)
-                    Row(Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        state.zoomStops.forEach { ratio ->
-                            Button(onClick = { controller.zoomTo(ratio) },
-                                enabled = granted && state.ready && abs(state.selectedZoom - ratio) > 0.005f) {
-                                Text(zoomLabel(ratio))
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    zoomStops.forEach { factor ->
+                        Button(onClick = {
+                            val current = camera
+                            if (current == null) { status = "E_ZOOM: 카메라 준비 중" }
+                            else {
+                                try {
+                                    current.setZoomRatio(factor) { succeeded, error ->
+                                        if (succeeded) {
+                                            selectedZoom = factor
+                                            status = "${if (front) "전면" else "후면"} · API 줌 ${zoomLabel(factor)}"
+                                        } else {
+                                            status = "E_ZOOM: ${error ?: "적용 실패"}"
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    status = "E_ZOOM: ${e.localizedMessage ?: "줌 범위 오류"}"
+                                    Log.e("KwakStream", "[E_ZOOM]", e)
+                                }
                             }
+                        }, enabled = granted && camera != null && abs(selectedZoom - factor) > 0.01f) {
+                            Text(zoomLabel(factor))
                         }
                     }
                 }
