@@ -223,6 +223,7 @@ final class CameraModel: ObservableObject {
 struct CameraScreen: View {
     @StateObject private var model = CameraModel()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @State private var frontMenuExpanded = false
 
     private func frontLensIcon(_ symbol: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -233,6 +234,13 @@ struct CameraScreen: View {
                 .background(selected ? Color.white : Color.black.opacity(0.65))
                 .clipShape(Circle())
         }.buttonStyle(.plain).accessibilityLabel(label)
+    }
+    private func panelPlaceholder(_ icon: String, _ title: String) -> some View {
+        VStack(spacing: 0) {
+            Image(systemName: icon).frame(width: 40, height: 40)
+                .background(Color.primary.opacity(0.12)).clipShape(Circle())
+            Text(title).font(.caption2)
+        }.foregroundColor(.primary.opacity(0.45)).accessibilityLabel("\(title) 준비 중")
     }
     var body: some View {
         GeometryReader { geometry in
@@ -281,8 +289,6 @@ struct CameraScreen: View {
                             if frontMenuExpanded && !hasTwo { Text("다른 전면 화각을 지원하지 않습니다").font(.caption).foregroundColor(.white) }
                         }
                         HStack(spacing: 8) {
-                            Button("카메라 전환: [\(model.cameraSide)]") { model.switchCamera() }
-                                .accessibilityIdentifier("switchCamera")
                             if model.cameraSide != "전면" {
                                 ForEach(model.zoomFactors, id: \.self) { zoom in
                                     Button { model.setZoom(zoom) } label: {
@@ -304,6 +310,31 @@ struct CameraScreen: View {
                     }
                     .padding(.bottom, 12)
                 }
+            }
+            .overlay(alignment: .trailing) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Button { model.switchCamera() } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .frame(width: 40, height: 40)
+                            .foregroundColor(.white)
+                            .background(Color(red: 25/255, green: 118/255, blue: 210/255))
+                            .clipShape(Circle())
+                    }.accessibilityIdentifier("switchCamera")
+                    Text("카메라").font(.caption2)
+                    Spacer(minLength: 0)
+                    panelPlaceholder("mic", "마이크")
+                    Spacer(minLength: 0)
+                    panelPlaceholder("circle.fill", "LIVE")
+                    Spacer(minLength: 0)
+                    panelPlaceholder("record.circle", "녹화")
+                    Spacer(minLength: 0)
+                    panelPlaceholder("square.3.layers.3d", "오버레이")
+                    Spacer(minLength: 0)
+                }
+                .frame(width: 68)
+                .frame(maxHeight: .infinity)
+                .background(colorScheme == .dark ? Color(red: 24/255, green: 26/255, blue: 30/255) : Color(red: 246/255, green: 246/255, blue: 249/255))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)

@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.shape.CircleShape
@@ -46,7 +47,7 @@ class MainActivity : ComponentActivity() {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.hide(WindowInsetsCompat.Type.navigationBars())
-        setContent { CameraScreen() }
+        setContent { DashboardTheme { CameraScreen() } }
     }
 }
 
@@ -188,12 +189,7 @@ fun CameraScreen() {
                             modifier = Modifier.background(Color.Black.copy(alpha = 0.75f)).padding(4.dp))
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
-                    Button(onClick = { front = !front }, enabled = granted) {
-                        Text("카메라 전환: [${if (front) "전면" else "후면"}]")
-                    }
-                }
+                if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
                 if (!front) {
                     Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         zoomStops.forEach { factor ->
@@ -208,7 +204,60 @@ fun CameraScreen() {
                 }
             }
         }
+        RightControlPanel(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            enabled = granted,
+            onSwitchCamera = { front = !front }
+        )
     }
+}
+
+@Composable
+private fun RightControlPanel(modifier: Modifier, enabled: Boolean, onSwitchCamera: () -> Unit) {
+    Column(
+        modifier = modifier.fillMaxHeight().width(68.dp)
+            .background(MaterialTheme.colorScheme.surface).padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceEvenly
+    ) {
+        ControlButton("↻", "카메라", enabled, onSwitchCamera)
+        ControlButton("♩", "마이크", false) { }
+        ControlButton("●", "LIVE", false) { }
+        ControlButton("●", "녹화", false) { }
+        ControlButton("▧", "오버레이", false) { }
+    }
+}
+
+@Composable
+private fun ControlButton(symbol: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(onClick = onClick, enabled = enabled,
+            modifier = Modifier.size(40.dp).background(
+                if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
+            ).semantics { contentDescription = if (enabled) label else "$label (준비 중)" }) {
+            Text(symbol, color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
+    }
+}
+
+@Composable
+private fun DashboardTheme(content: @Composable () -> Unit) {
+    val dark = isSystemInDarkTheme()
+    val scheme = if (dark) darkColorScheme(
+        primary = Color(0xFF1976D2), onPrimary = Color.White,
+        primaryContainer = Color(0xFF153A60), onPrimaryContainer = Color(0xFFCFE8FF),
+        background = Color(0xFF25252C), onBackground = Color(0xFFFBFBFB),
+        surface = Color(0xFF181A1E), onSurface = Color(0xFFFBFBFB), error = Color(0xFFFF7777)
+    ) else lightColorScheme(
+        primary = Color(0xFF1976D2), onPrimary = Color.White,
+        primaryContainer = Color(0xFFCFE8FF), onPrimaryContainer = Color(0xFF363949),
+        background = Color(0xFFEEEEEE), onBackground = Color(0xFF363949),
+        surface = Color(0xFFF6F6F9), onSurface = Color(0xFF363949),
+        error = Color(0xFFD32F2F), onError = Color.White, errorContainer = Color(0xFFFECDD3)
+    )
+    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 @Composable

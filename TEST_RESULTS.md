@@ -1,3 +1,7 @@
+# v0.1.22
+
+v0.1.22: Android Termux Studio 빌드, Android 실기기, iOS 빌드 및 시뮬레이터, iOS 실기기: 미실행 (환경 제한). UI 실제 표시 및 카메라 회귀: 미실행.
+
 # v0.1.21 검증
 - 미실행: Android/iOS 빌드, 기기 카메라, 권한 및 오류 표시 테스트.
 - 기존의 간헐적인 Camera2 Surface 오류는 해결되지 않았고 원인 미확정.
