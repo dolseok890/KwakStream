@@ -214,26 +214,32 @@ fun CameraScreen() {
         contentAlignment = Alignment.Center
     ) {
         val availableWidth = (maxWidth - 88.dp).coerceAtLeast(0.dp)
-        val availableHeight = (maxHeight - 84.dp).coerceAtLeast(1.dp)
+        val availableHeight = maxHeight.coerceAtLeast(1.dp)
         val previewWidth = minOf(availableWidth, availableHeight * aspect)
         val previewHeight = previewWidth / aspect
+        val verticalMargin = ((maxHeight - previewHeight) / 2).coerceAtLeast(0.dp)
+        val topOverlay = verticalMargin < 28.dp
+        val bottomOverlay = verticalMargin < 56.dp
         Box(Modifier.fillMaxSize().padding(end = 88.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().padding(top = 28.dp, bottom = 56.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
                 if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                 PreviewGuides(Modifier.fillMaxSize())
             }
         }
-            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(28.dp).padding(horizontal = 12.dp),
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(28.dp)
+                .background(if (topOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent).padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("대기 · ${if (front) "전면" else "후면"}", color = Color.White, style = MaterialTheme.typography.labelSmall)
                 BatteryIndicator(batteryPercent, batteryCharging)
             }
             AudioMeter(levels = micLevels, granted = micGranted, error = micError,
                 onRequest = { if (!micGranted) micPermission.launch(Manifest.permission.RECORD_AUDIO) },
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 5.dp))
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 5.dp)
+                    .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent))
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
+                    .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {

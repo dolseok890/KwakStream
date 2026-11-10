@@ -252,8 +252,9 @@ struct CameraScreen: View {
             // than an accessibility container expanded by padding/overlays.
             let landscape = geometry.size.width > geometry.size.height
             let aspect: CGFloat = landscape ? (16.0 / 9.0) : (9.0 / 16.0)
-            let fittedWidth = max(0, min(geometry.size.width - 88, max(1, geometry.size.height - 84) * aspect))
+            let fittedWidth = max(0, min(geometry.size.width - 88, max(1, geometry.size.height) * aspect))
             let fittedHeight = fittedWidth / aspect
+            let verticalMargin = max(0, (geometry.size.height - fittedHeight) / 2)
             let controlSize = max(36, min(56, (geometry.size.height - 114) / 5))
             ZStack {
                 Color.black
@@ -271,7 +272,7 @@ struct CameraScreen: View {
                         .accessibilityValue(String(format: "%.2f x %.2f", fittedWidth, fittedHeight))
                 }
                 .frame(width: fittedWidth, height: fittedHeight)
-                .offset(x: -44, y: -14)
+                .offset(x: -44)
                 HStack {
                     Text("대기 · \(model.cameraSide)")
                     Spacer()
@@ -279,9 +280,11 @@ struct CameraScreen: View {
                 }
                 .font(.caption2).foregroundColor(.white).padding(.horizontal, 12)
                 .frame(height: 28)
+                .background(verticalMargin < 28 ? Color.black.opacity(0.65) : Color.clear)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.trailing, 88)
                 AudioMeterView(meter: microphone)
+                    .background(verticalMargin < 56 ? Color.black.opacity(0.65) : Color.clear)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .padding(.leading, 8).padding(.bottom, 5).padding(.trailing, 88)
                 VStack(spacing: 6) {
@@ -326,6 +329,7 @@ struct CameraScreen: View {
                         .controlSize(.small)
                         .padding(.horizontal, 5)
                     }
+                .background(verticalMargin < 56 ? Color.black.opacity(0.65) : Color.clear)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .padding(.trailing, 88)
                 .padding(.bottom, 4)

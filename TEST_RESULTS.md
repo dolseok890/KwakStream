@@ -1,3 +1,7 @@
+# v0.1.32
+
+v0.1.32: Android Termux Studio 빌드·실기기와 iOS 빌드·시뮬레이터·실기기 미실행. 16:9 계산 및 ZIP 확인 외 기능 미검증.
+
 # v0.1.31
 
 v0.1.31: Android Termux Studio 빌드·Android 실기기 및 iOS 빌드·시뮬레이터·실기기 미실행. 마이크 신호·권한·수명주기 미검증.
