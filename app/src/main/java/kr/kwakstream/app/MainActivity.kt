@@ -210,20 +210,21 @@ fun CameraScreen() {
         } catch (e: Exception) { status = "E_ZOOM: ${e.localizedMessage ?: "줌 범위 오류"}"; Log.e("KwakStream", "[E_ZOOM]", e) }
     }
     val configuration = LocalConfiguration.current
-    val aspect = if (configuration.screenWidthDp > configuration.screenHeightDp) 16f / 9f else 9f / 16f
+    val portrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+    val aspect = if (portrait) 9f / 16f else 16f / 9f
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
-        val availableWidth = (maxWidth - 88.dp).coerceAtLeast(0.dp)
-        val availableHeight = maxHeight.coerceAtLeast(1.dp)
+        val availableWidth = (maxWidth - if (portrait) 0.dp else 88.dp).coerceAtLeast(1.dp)
+        val availableHeight = (maxHeight - if (portrait) 160.dp else 0.dp).coerceAtLeast(1.dp)
         val previewWidth = minOf(availableWidth, availableHeight * aspect)
         val previewHeight = previewWidth / aspect
         val verticalMargin = ((maxHeight - previewHeight) / 2).coerceAtLeast(0.dp)
         val topOverlay = verticalMargin < 28.dp
         val bottomOverlay = verticalMargin < 56.dp
-        Box(Modifier.fillMaxSize().padding(end = 88.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().padding(end = if (portrait) 0.dp else 88.dp, bottom = if (portrait) 104.dp else 0.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().padding(bottom = if (portrait) 56.dp else 0.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.width(previewWidth).height(previewHeight).background(Color.Black), contentAlignment = Alignment.Center) {
                 if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                 PreviewGuides(Modifier.fillMaxSize())
@@ -237,10 +238,10 @@ fun CameraScreen() {
             }
             AudioMeter(levels = micLevels, granted = micGranted, error = micError,
                 onRequest = { if (!micGranted) micPermission.launch(Manifest.permission.RECORD_AUDIO) },
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 5.dp)
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = if (portrait) 60.dp else 5.dp)
                     .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent))
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) 70.dp else 4.dp)
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
                     .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -294,11 +295,37 @@ fun CameraScreen() {
                 if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
             }
         }
-        RightControlPanel(
-            modifier = Modifier.align(Alignment.CenterEnd),
-            enabled = granted,
-            onSwitchCamera = { front = !front }
-        )
+        if (portrait) {
+            BottomControlPanel(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enabled = granted,
+                onSwitchCamera = { front = !front }
+            )
+        } else {
+            RightControlPanel(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                enabled = granted,
+                onSwitchCamera = { front = !front }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomControlPanel(modifier: Modifier, enabled: Boolean, onSwitchCamera: () -> Unit) {
+    BoxWithConstraints(
+        modifier = modifier.fillMaxWidth().height(104.dp).background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        val size = ((maxWidth - 48.dp) / 5).coerceIn(32.dp, 52.dp)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically) {
+            ControlButton(Icons.Default.Refresh, "카메라", enabled, size, onSwitchCamera)
+            ControlButton(Icons.Default.Mic, "마이크", false, size) { }
+            ControlButton(Icons.Default.PlayArrow, "LIVE", false, size + 8.dp) { }
+            ControlButton(Icons.Default.RadioButtonChecked, "녹화", false, size) { }
+            ControlButton(Icons.Default.Layers, "오버레이", false, size) { }
+        }
     }
 }
 
