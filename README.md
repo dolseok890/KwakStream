@@ -1,6 +1,6 @@
 # 곽스트림 — 새 카메라 미리보기 v0.1.7
 
-기존 프로젝트를 사용하지 않은 새 프로젝트. Android는 CameraX의 Camera2 백엔드와 PreviewView FIT_CENTER, iOS는 AVFoundation resizeAspect를 사용합니다. 녹화·오디오·송출 기능은 포함하지 않습니다.
+기존 프로젝트를 사용하지 않은 새 프로젝트. Android는 Camera2와 TextureView FIT_CENTER, iOS는 AVFoundation resizeAspect를 사용합니다. 녹화·오디오·송출 기능은 포함하지 않습니다.
 
 ## Android
 Termux Studio의 기존 명령 `kbuild KwakStream.zip` 사용. 앱 모듈은 `app/`입니다. SDK 35, Java 17이 필요합니다. 실제 빌드는 미검증입니다.
@@ -40,6 +40,6 @@ Android는 내비게이션 바를 숨기고 가장자리 스와이프로 일시 
 ## v0.1.6 카메라 오류 및 API 줌 (기능 유지)
 - iOS: 세로 9:16/가로 16:9를 실제 사용 가능한 크기 안에 명시적 폭·높이로 맞추고, 측정용 접근성 요소를 분리합니다. 오류는 `E_PERMISSION`, `E_INPUT`, `E_SWITCH`, `E_START`, `E_RUNTIME`, `E_INTERRUPTED`, `E_ZOOM` 형태로 화면·로그에 기록합니다.
 - iOS 실기기: `AVCaptureDevice.virtualDeviceSwitchOverVideoZoomFactors`에서 보고한 줌 전환점과 1×만 표시합니다. 기기별 배율은 다르며 고정된 0.6/2/3×를 강제로 만들지 않습니다. 전면에 전환점이 없다면 1×만 표시됩니다.
-- Android: Camera2가 공개하는 물리 카메라 렌즈 초점거리·센서 크기로 환산 가능한 광학 배율 후보만 표시합니다. 물리 렌즈 정보가 없으면 1×만 표시합니다. CameraX의 실제 광학 렌즈 선택 여부는 기기 테스트가 필요합니다.
+- Android: Camera2가 공개하는 물리 카메라 렌즈 초점거리·센서 크기로 환산 가능한 광학 배율 후보만 표시합니다. 물리 렌즈 정보가 없으면 1×만 표시합니다. Camera2의 실제 광학 렌즈 선택 여부는 기기 테스트가 필요합니다.
 - 모듈은 기존 `app`과 `ios`로 유지하며, 0.1.5 아이콘 및 앱 ID `live.kwak.stream`을 그대로 유지합니다. 녹화/송출 기능은 추가하지 않았습니다.
 - 실제 Android 빌드는 기존 Termux Studio의 `kbuild KwakStream.zip`을 사용합니다. 현재 제작 환경은 iOS/macOS 및 Android SDK가 없어 정적 점검 외에는 미실행입니다.

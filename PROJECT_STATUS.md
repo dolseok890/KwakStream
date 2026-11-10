@@ -1,16 +1,8 @@
-# 곽스트림 v0.1.7 — GitHub 릴리스 구조 변경
+# 곽스트림 v0.1.17
 
-- 기준: v0.1.6의 원본 Android/iOS 소스. 기능 변경 없이 GitHub 릴리스 스크립트와 CI 경로를 수정함.
-- Android `versionCode 8` / `versionName 0.1.7`, iOS `MARKETING_VERSION 0.1.7` / build `8`; 앱 ID `live.kwak.stream` 보존.
-- GitHub 루트 소스 + 커밋 + 주석 태그(`v0.1.7`), 신규 버전 폴더 생성 제거.
-- 기존 v0.1.3~v0.1.6 원본은 역사적 Git 태그에서 확인한 후 루트 버전 폴더만 정리.
-- 기존 iOS 카메라/시뮬 진단 및 Android 엔진/아이콘 코드를 변경하지 않음.
-- 실제 Android/iOS 빌드 및 기기 동작은 별도 검증 필요.
-- GitHub 원격 push는 ZIP 배포 스크립트 실행 전에는 이루어지지 않음.
-- 검증: 임시 Git bare 저장소에서 v0.1.3~v0.1.6 태그 보존, 새 v0.1.7 태그·커밋 push, 중복 태그 차단, 잘못된 ZIP 버전 차단 확인.
-
-## v0.1.16 상태
-- 기준: v0.1.15 순정 v0.1.7 기반 Camera2 포팅
-- 수정: Kotlin 컴파일 오류 2개, 버전 번호만 변경
-- 전체 Gradle APK 빌드: 미실행(Android SDK 없음). iOS 소스: 변경 없음.
-- GitHub 커밋/태그: 미실행.
+- 기준: 사용자가 언급한 v0.1.16 Camera2 포팅. Android versionCode 18 / versionName 0.1.17; iOS build 18 / version 0.1.17.
+- 확인: Android 의존성과 소스에 CameraX 모듈 없음. 기존 Camera2 유지.
+- 수정: TextureView의 지원되지 않는 setBackgroundColor 호출을 없애고 Compose 부모 검정 배경 유지. 앱 크래시의 유력 원인이지만 사용자 기기 스택 트레이스 없어 확정 불가.
+- iOS 앱 Swift 및 시뮬레이터 테스트/워크플로 코드는 변경하지 않았으며 iOS project.yml의 버전만 동기화. v0.1.5로 무조건 되돌리지 않음: 사용자 요청의 되돌릴 범위 불명확 및 성공한 시뮬레이터 설정 보호.
+- 자동 GitHub 업로드 스크립트는 v0.1.16에서 계승했으며 기존 버전 폴더를 정리하는 기능이 있어 사용자 정책과 충돌할 수 있음. 실행하지 말 것.
+- Android 실제 빌드, 기기 실행 및 iOS 시뮬레이터 재실행 미검증.

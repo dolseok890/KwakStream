@@ -66,7 +66,7 @@ fun CameraScreen() {
     }
     LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
     val previewView = remember(context) {
-        TextureView(context).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+        TextureView(context).apply { isOpaque = false }
     }
 
     DisposableEffect(granted, owner) {
