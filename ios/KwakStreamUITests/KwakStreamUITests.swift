@@ -58,6 +58,17 @@ final class KwakStreamUITests: XCTestCase {
         button.tap()
         let front = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "[전면]"), object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [front], timeout: 5), .completed, "전면 전환 실패: \(status.label)")
+        let frontMenu = app.buttons["넓게 선택됨, 목록"]
+        XCTAssertTrue(frontMenu.waitForExistence(timeout: 5))
+        frontMenu.tap()
+        let normal = app.buttons["일반"]
+        XCTAssertTrue(normal.waitForExistence(timeout: 5))
+        normal.tap()
+        XCTAssertTrue(app.buttons["일반 선택됨, 목록"].waitForExistence(timeout: 5))
+        app.buttons["일반 선택됨, 목록"].tap()
+        XCTAssertTrue(app.buttons["넓게"].waitForExistence(timeout: 5))
+        app.buttons["넓게"].tap()
+        XCTAssertTrue(app.buttons["넓게 선택됨, 목록"].waitForExistence(timeout: 5))
         button.tap()
         let back = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "[후면]"), object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [back], timeout: 5), .completed, "후면 전환 실패: \(status.label)")

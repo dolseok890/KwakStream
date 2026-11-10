@@ -106,7 +106,7 @@ final class CameraModel: ObservableObject {
             self.position = target
             let side = target == .front ? "전면" : "후면"
             NSLog("[KwakStream][SIM_SWITCH] %@", side)
-            self.publish("SIMULATOR · 카메라 전환: [\(side)] (가상)", side: side, zooms: [1], zoom: 1)
+            self.publish("SIMULATOR · 카메라 전환: [\(side)] (가상)", side: side, zooms: target == .front ? [1, 1.3] : [1], zoom: 1)
             #else
             if self.shouldRun { self.configureOnQueue(target: target) }
             else { self.position = target; self.publish("카메라 준비 중", side: target == .front ? "전면" : "후면") }
@@ -117,7 +117,9 @@ final class CameraModel: ObservableObject {
     func setZoom(_ zoom: Double) {
         queue.async {
             #if targetEnvironment(simulator)
-            self.publish("SIMULATOR · 1× (실제 렌즈 없음)", zoom: 1)
+            let valid = self.position == .front ? [1.0, 1.3] : [1.0]
+            guard valid.contains(where: { abs($0 - zoom) < 0.005 }) else { self.fail("E_ZOOM_RANGE", "지원되지 않는 가상 줌"); return }
+            self.publish("SIMULATOR · 카메라 [\(self.position == .front ? "전면" : "후면")] (가상)", zoom: zoom)
             #else
             guard let device = self.input?.device else { self.fail("E_ZOOM", "카메라가 준비되지 않았습니다"); return }
             let factor = CGFloat(zoom)
@@ -148,6 +150,12 @@ final class CameraModel: ObservableObject {
     private func zoomChoices(for device: AVCaptureDevice) -> [Double] {
         let lower = Double(device.minAvailableVideoZoomFactor)
         let upper = Double(min(device.maxAvailableVideoZoomFactor, device.activeFormat.videoMaxZoomFactor))
+        if device.position == .front {
+            guard lower <= upper else { return [] }
+            let wide = lower
+            let normal = min(upper, wide * 1.3)
+            return normal - wide >= 0.05 ? [wide, normal] : [wide]
+        }
         let candidates = [1.0] + device.virtualDeviceSwitchOverVideoZoomFactors.map { $0.doubleValue }
         return Array(Set(candidates.filter { $0 >= lower - 0.0001 && $0 <= upper + 0.0001 }))
             .sorted()
@@ -215,10 +223,10 @@ final class CameraModel: ObservableObject {
 struct CameraScreen: View {
     @StateObject private var model = CameraModel()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var frontMenuExpanded = false
 
-    private func frontLensIcon(_ symbol: String, label: String, value: Double) -> some View {
-        let selected = abs(model.selectedZoom - value) < 0.01
-        return Button { model.setZoom(value) } label: {
+    private func frontLensIcon(_ symbol: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        return Button(action: action) {
             Image(systemName: symbol)
                 .foregroundColor(selected ? .black : .white)
                 .frame(width: 44, height: 44)
@@ -258,6 +266,20 @@ struct CameraScreen: View {
                             .padding(6)
                             .background(Color.black.opacity(0.75))
                             .accessibilityIdentifier("cameraStatus")
+                        if model.cameraSide == "전면", let wide = model.zoomFactors.min(), let normal = model.zoomFactors.max() {
+                            let hasTwo = normal - wide >= 0.05
+                            let isWide = hasTwo && abs(model.selectedZoom - wide) < abs(model.selectedZoom - normal)
+                            HStack(spacing: 6) {
+                                frontLensIcon(isWide ? "arrow.up.left.and.arrow.down.right" : "viewfinder", label: isWide ? "넓게 선택됨, 목록" : "일반 선택됨, 목록", selected: true) { frontMenuExpanded.toggle() }
+                                if frontMenuExpanded && hasTwo {
+                                    frontLensIcon(isWide ? "viewfinder" : "arrow.up.left.and.arrow.down.right", label: isWide ? "일반" : "넓게", selected: false) {
+                                        model.setZoom(isWide ? normal : wide)
+                                        frontMenuExpanded = false
+                                    }
+                                }
+                            }
+                            if frontMenuExpanded && !hasTwo { Text("다른 전면 화각을 지원하지 않습니다").font(.caption).foregroundColor(.white) }
+                        }
                         HStack(spacing: 8) {
                             Button("카메라 전환: [\(model.cameraSide)]") { model.switchCamera() }
                                 .accessibilityIdentifier("switchCamera")
@@ -282,23 +304,12 @@ struct CameraScreen: View {
                     }
                     .padding(.bottom, 12)
                 }
-                .overlay(alignment: .topLeading) {
-                    if model.cameraSide == "전면" {
-                        HStack(spacing: 6) {
-                            if let normal = model.zoomFactors.first(where: { abs($0 - 1) < 0.01 }) {
-                                frontLensIcon("person.fill", label: "일반", value: normal)
-                            }
-                            if let wide = model.zoomFactors.filter({ $0 < 0.99 }).min() {
-                                frontLensIcon("person.2.fill", label: "넓게", value: wide)
-                            }
-                        }.padding(12)
-                    }
-                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
         }
         .background(Color.black)
+        .onChange(of: model.cameraSide) { _ in frontMenuExpanded = false }
         .onAppear { model.start() }
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { phase in

@@ -68,6 +68,7 @@ fun CameraScreen() {
     var engine by remember { mutableStateOf<Camera2Controller?>(null) }
     var zoomStops by remember { mutableStateOf(listOf(1f)) }
     var selectedZoom by remember { mutableFloatStateOf(1f) }
+    var frontMenuExpanded by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (!it) status = "E_PERMISSION: 카메라 권한이 필요합니다"
@@ -125,6 +126,7 @@ fun CameraScreen() {
 
     LaunchedEffect(front, engine) {
         val activeEngine = engine
+        frontMenuExpanded = false
         if (activeEngine != null) {
             camera = null
             zoomStops = listOf(1f)
@@ -153,14 +155,6 @@ fun CameraScreen() {
             Modifier.fillMaxHeight().aspectRatio(aspect) else Modifier.fillMaxWidth().aspectRatio(aspect)
         Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
             if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            if (front && granted && camera != null) {
-                Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val normal = zoomStops.firstOrNull { abs(it - 1f) < 0.01f }
-                    val wide = zoomStops.filter { it < 0.99f }.minOrNull()
-                    if (normal != null) FrontLensButton(false, abs(selectedZoom - normal) < 0.01f) { applyZoom(normal) }
-                    if (wide != null) FrontLensButton(true, abs(selectedZoom - wide) < 0.01f) { applyZoom(wide) }
-                }
-            }
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -171,6 +165,26 @@ fun CameraScreen() {
                         .padding(horizontal = 8.dp, vertical = 4.dp))
                 if (status.startsWith("E_CAMERA")) {
                     TextButton(onClick = { clipboard.setText(AnnotatedString(status)) }) { Text("오류 복사", color = Color.White) }
+                }
+                if (front && granted && camera != null) {
+                    val wide = zoomStops.minOrNull()
+                    val normal = zoomStops.maxOrNull()
+                    if (wide != null && normal != null) {
+                        val hasTwo = normal - wide >= 0.05f
+                        val isWide = hasTwo && abs(selectedZoom - wide) < abs(selectedZoom - normal)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            FrontLensButton(isWide, true) { frontMenuExpanded = !frontMenuExpanded }
+                            if (frontMenuExpanded && hasTwo) {
+                                FrontLensButton(!isWide, false) {
+                                    val target = if (isWide) normal else wide
+                                    applyZoom(target)
+                                    frontMenuExpanded = false
+                                }
+                            }
+                        }
+                        if (frontMenuExpanded && !hasTwo) Text("다른 전면 화각을 지원하지 않습니다", color = Color.White, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.background(Color.Black.copy(alpha = 0.75f)).padding(4.dp))
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (!granted) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("권한 허용") }
@@ -203,10 +217,16 @@ private fun FrontLensButton(wide: Boolean, selected: Boolean, onClick: () -> Uni
         colors = ButtonDefaults.buttonColors(containerColor = if (selected) Color.White else Color.Black.copy(alpha = 0.65f))) {
         Canvas(Modifier.size(24.dp)) {
             val u = size.width / 24f
-            val xs = if (wide) listOf(8f, 16f) else listOf(12f)
-            xs.forEach { x ->
-                drawCircle(ink, radius = 2.5f * u, center = Offset(x * u, 7f * u))
-                drawLine(ink, Offset((x - 3f) * u, 17f * u), Offset((x + 3f) * u, 17f * u), strokeWidth = 3f * u)
+            // A frame with outward corners for wide; a smaller frame for normal.
+            val lo = if (wide) 3f else 7f
+            val hi = if (wide) 21f else 17f
+            val segment = 4f
+            val stroke = 2f * u
+            for (x in listOf(lo, hi)) for (y in listOf(lo, hi)) {
+                val dx = if (x == lo) segment else -segment
+                val dy = if (y == lo) segment else -segment
+                drawLine(ink, Offset(x * u, (y + dy) * u), Offset(x * u, y * u), strokeWidth = stroke)
+                drawLine(ink, Offset(x * u, y * u), Offset((x + dx) * u, y * u), strokeWidth = stroke)
             }
         }
     }

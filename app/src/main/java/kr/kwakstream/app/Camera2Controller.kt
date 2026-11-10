@@ -182,7 +182,8 @@ internal class Camera2Controller(
                             session = readySession
                             try {
                                 readySession.setRepeatingRequest(builder.build(), null, cameraHandler)
-                                val stops = lensStops(id, characteristics)
+                                val stops = if (characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT)
+                                    frontZoomStops(characteristics) else lensStops(id, characteristics)
                                 mainHandler.post { if (isCurrent(token)) onReady(stops) }
                             } catch (e: Exception) {
                                 reportError(token, "E_CAMERA: ${e.localizedMessage ?: "미리보기 실패"}", e)
@@ -259,6 +260,17 @@ internal class Camera2Controller(
                 mainHandler.post { if (isCurrent(token)) callback(false, e.localizedMessage ?: "적용 실패") }
             }
         }
+    }
+
+    /** Front field-of-view choices; values stay within the camera's reported zoom range. */
+    private fun frontZoomStops(info: CameraCharacteristics): List<Float> {
+        val range = if (Build.VERSION.SDK_INT >= 30) info.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) else null
+        val min = range?.lower ?: 1f
+        val max = range?.upper ?: (info.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
+        if (!min.isFinite() || !max.isFinite() || min > max) return listOf(1f)
+        val wide = min.coerceAtMost(1f).coerceIn(min, max)
+        val normal = if (wide < 0.99f) 1f.coerceIn(min, max) else minOf(max, wide * 1.3f)
+        return if (normal - wide >= 0.05f) listOf(wide, normal) else listOf(wide)
     }
 
     /** Preserve v0.1.7's physical metadata lens-stop heuristic, without inventing new buttons. */
