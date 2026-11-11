@@ -17,6 +17,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
@@ -237,10 +238,9 @@ fun CameraScreen() {
                 BatteryIndicator(batteryPercent, batteryCharging)
             }
             AudioMeter(levels = micLevels, granted = micGranted, error = micError,
-                meterWidth = minOf(210.dp, availableWidth * (if (portrait) 0.50f else 0.30f)),
+                meterHeight = minOf(140.dp, maxHeight * 0.35f),
                 onRequest = { if (!micGranted) micPermission.launch(Manifest.permission.RECORD_AUDIO) },
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = if (portrait) 60.dp else 5.dp)
-                    .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent))
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
                     .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent),
@@ -348,46 +348,49 @@ private fun RightControlPanel(modifier: Modifier, enabled: Boolean, onSwitchCame
 
 @Composable
 private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    val live = label == "LIVE"
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled,
             modifier = Modifier.size(size).background(
-                if (label == "LIVE") Color(0xFFD32F2F) else if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
-            ).semantics { contentDescription = if (enabled) label else "$label (준비 중)" }) {
-            Icon(symbol, contentDescription = null, modifier = Modifier.size(size * 0.52f),
-                tint = if (enabled || label == "LIVE") Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+                if (live) Color(0xFFD32F2F) else if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape
+            ).then(if (live) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                .semantics { contentDescription = if (enabled) label else "$label (준비 중)" }) {
+            if (live) Text("LIVE", color = Color.White, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            else Icon(symbol, contentDescription = null, modifier = Modifier.size(size * 0.52f),
+                tint = if (enabled) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
         }
-        Text(label, style = MaterialTheme.typography.labelSmall,
+        if (!live) Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.55f), maxLines = 1)
     }
 }
 
 @Composable
-private fun AudioMeter(levels: List<Float>, granted: Boolean, error: Boolean, onRequest: () -> Unit, meterWidth: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.width(meterWidth).clickable(enabled = !granted, onClick = onRequest), verticalArrangement = Arrangement.Center) {
-        if (!granted || error) {
-            Text(if (error) "마이크 사용 불가" else "마이크 허용", color = Color.White, style = MaterialTheme.typography.labelSmall)
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Mic, contentDescription = "마이크 레벨", tint = Color.White, modifier = Modifier.size(16.dp))
-                Column(Modifier.padding(start = 3.dp)) {
-                    val values = if (levels.isEmpty()) listOf(-60f) else levels
-                    values.take(2).forEachIndexed { i, db ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (values.size == 1) "M" else if (i == 0) "L" else "R", color = Color.White, style = MaterialTheme.typography.labelSmall)
-                            Canvas(Modifier.padding(start = 2.dp).width((meterWidth - 39.dp).coerceAtLeast(1.dp)).height(6.dp)) {
-                                val segments = 20
-                                val step = size.width / segments
-                                for (index in 0 until segments) {
-                                    val threshold = -60f + 60f * (index + 1) / segments
-                                    val color = when { index >= 19 -> Color(0xFFD32F2F); threshold > -12f -> Color(0xFFFBC02D); else -> Color(0xFF388E3C) }
-                                    drawRect(if (db >= threshold) color else Color.DarkGray, topLeft = Offset(index * step, 0f), size = Size((step - 1.dp.toPx()).coerceAtLeast(0f), size.height))
-                                }
-                            }
+private fun AudioMeter(levels: List<Float>, granted: Boolean, error: Boolean, onRequest: () -> Unit, meterHeight: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    if (!granted || error) {
+        Text(if (error) "마이크 사용 불가" else "마이크 허용", color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = modifier.background(Color.Black.copy(alpha = 0.7f)).clickable(enabled = !granted, onClick = onRequest).padding(4.dp))
+    } else {
+        val values = (if (levels.isEmpty()) listOf(-60f) else levels).take(2)
+        Row(modifier = modifier.semantics { contentDescription = if (values.size == 1) "모노 마이크 레벨" else "스테레오 마이크 레벨" },
+            horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            values.forEachIndexed { index, db ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Canvas(Modifier.width(8.dp).height(meterHeight)) {
+                        val segments = 20
+                        val step = size.height / segments
+                        for (i in 0 until segments) {
+                            val threshold = -60f + 60f * (i + 1) / segments
+                            val color = when { i >= 19 -> Color(0xFFD32F2F); threshold > -12f -> Color(0xFFFBC02D); else -> Color(0xFF388E3C) }
+                            drawRect(if (db >= threshold) color else Color.DarkGray,
+                                topLeft = Offset(0f, size.height - (i + 1) * step),
+                                size = Size(size.width, (step - 1.dp.toPx()).coerceAtLeast(0f)))
                         }
                     }
+                    Text(if (values.size == 1) "M" else if (index == 0) "L" else "R",
+                        color = Color.White, style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Text("      -24                  -12             0 dBFS", color = Color.LightGray, style = MaterialTheme.typography.labelSmall, maxLines = 1)
         }
     }
 }
