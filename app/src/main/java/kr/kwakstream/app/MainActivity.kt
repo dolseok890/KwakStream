@@ -238,7 +238,7 @@ fun CameraScreen() {
                 BatteryIndicator(batteryPercent, batteryCharging)
             }
             AudioMeter(levels = micLevels, granted = micGranted, error = micError,
-                meterHeight = minOf(140.dp, maxHeight * 0.35f),
+                meterHeight = minOf(140.dp, availableHeight * 0.35f),
                 onRequest = { if (!micGranted) micPermission.launch(Manifest.permission.RECORD_AUDIO) },
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
             Column(

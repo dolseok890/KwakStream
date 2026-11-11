@@ -68,3 +68,7 @@ v0.1.22: Android Termux Studio 빌드, Android 실기기, iOS 빌드 및 시뮬�
 - ZIP 무결성과 배포 스크립트 검사 통과.
 - Android 빌드 및 실기기 테스트 미실행.
 - LIVE·녹화는 미구현.
+
+## v0.1.38
+- 사용자 기기 v0.1.37 Kotlin 컴파일 실패 확인: maxHeight 참조 오류.
+- v0.1.38 ZIP·배포 검사 통과; Android 컴파일 및 기기 실행 미실행.
