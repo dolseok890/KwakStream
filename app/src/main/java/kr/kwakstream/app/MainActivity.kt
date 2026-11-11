@@ -237,6 +237,7 @@ fun CameraScreen() {
                 BatteryIndicator(batteryPercent, batteryCharging)
             }
             AudioMeter(levels = micLevels, granted = micGranted, error = micError,
+                meterWidth = minOf(210.dp, availableWidth * (if (portrait) 0.50f else 0.30f)),
                 onRequest = { if (!micGranted) micPermission.launch(Manifest.permission.RECORD_AUDIO) },
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = if (portrait) 60.dp else 5.dp)
                     .background(if (bottomOverlay) Color.Black.copy(alpha = 0.65f) else Color.Transparent))
@@ -361,8 +362,8 @@ private fun ControlButton(symbol: ImageVector, label: String, enabled: Boolean, 
 }
 
 @Composable
-private fun AudioMeter(levels: List<Float>, granted: Boolean, error: Boolean, onRequest: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.width(165.dp).clickable(enabled = !granted, onClick = onRequest), verticalArrangement = Arrangement.Center) {
+private fun AudioMeter(levels: List<Float>, granted: Boolean, error: Boolean, onRequest: () -> Unit, meterWidth: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.width(meterWidth).clickable(enabled = !granted, onClick = onRequest), verticalArrangement = Arrangement.Center) {
         if (!granted || error) {
             Text(if (error) "마이크 사용 불가" else "마이크 허용", color = Color.White, style = MaterialTheme.typography.labelSmall)
         } else {
@@ -373,7 +374,7 @@ private fun AudioMeter(levels: List<Float>, granted: Boolean, error: Boolean, on
                     values.take(2).forEachIndexed { i, db ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(if (values.size == 1) "M" else if (i == 0) "L" else "R", color = Color.White, style = MaterialTheme.typography.labelSmall)
-                            Canvas(Modifier.padding(start = 2.dp).width(126.dp).height(6.dp)) {
+                            Canvas(Modifier.padding(start = 2.dp).width((meterWidth - 39.dp).coerceAtLeast(1.dp)).height(6.dp)) {
                                 val segments = 20
                                 val step = size.width / segments
                                 for (index in 0 until segments) {
